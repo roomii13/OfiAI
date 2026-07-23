@@ -1,0 +1,99 @@
+rules_version = '2';
+// ============================================
+// OfiAI - Reglas de Seguridad de Firestore
+// ============================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== FUNCIONES AUXILIARES =====
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    function esRol(rol) {
+      return estaAutenticado() && request.auth.token.rol == rol;
+    }
+
+    function esAdmin() {
+      return esRol('admin');
+    }
+
+    function esEmpresa() {
+      return esRol('empresa');
+    }
+
+    function esProfesional() {
+      return esRol('profesional');
+    }
+
+    function esPropietario(usuarioId) {
+      return estaAutenticado() && request.auth.uid == usuarioId;
+    }
+
+    // ===== USUARIOS =====
+    match /users/{usuarioId} {
+      allow read: if esPropietario(usuarioId) || esAdmin();
+      allow create: if estaAutenticado() && esPropietario(usuarioId);
+      allow update: if esPropietario(usuarioId) || esAdmin();
+      allow delete: if esAdmin();
+    }
+
+    // ===== EMPRESAS =====
+    match /companies/{empresaId} {
+      allow read: if estaAutenticado();
+      allow create: if esEmpresa();
+      allow update: if esEmpresa() && esPropietario(resource.data.usuarioId) || esAdmin();
+      allow delete: if esAdmin();
+    }
+
+    // ===== PROFESIONALES =====
+    match /professionals/{profesionalId} {
+      allow read: if estaAutenticado();
+      allow create: if esProfesional();
+      allow update: if esProfesional() && esPropietario(resource.data.usuarioId) || esAdmin();
+      allow delete: if esAdmin();
+    }
+
+    // ===== TRABAJOS =====
+    match /jobs/{trabajoId} {
+      allow read: if estaAutenticado();
+      allow create: if esEmpresa();
+      allow update: if esEmpresa() && esPropietario(resource.data.empresaId) || esAdmin();
+      allow delete: if esEmpresa() && esPropietario(resource.data.empresaId) || esAdmin();
+    }
+
+    // ===== PROPUESTAS =====
+    match /proposals/{propuestaId} {
+      allow read: if esPropietario(resource.data.profesionalId) ||
+                     esPropietario(resource.data.empresaId) || esAdmin();
+      allow create: if esProfesional();
+      allow update: if esPropietario(resource.data.profesionalId) ||
+                       esPropietario(resource.data.empresaId) || esAdmin();
+      allow delete: if esAdmin();
+    }
+
+    // ===== RESEÑAS =====
+    match /reviews/{resenaId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado();
+      allow update: if esAdmin(); // Solo admins pueden moderar reseñas
+      allow delete: if esAdmin();
+    }
+
+    // ===== SUSCRIPCIONES =====
+    match /subscriptions/{suscripcionId} {
+      allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
+      allow create: if esAdmin(); // Las suscripciones las crea el backend via webhook de Stripe
+      allow update: if esAdmin();
+      allow delete: if esAdmin();
+    }
+
+    // ===== NOTIFICACIONES =====
+    match /notifications/{notificacionId} {
+      allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
+      allow create: if esAdmin(); // Las notificaciones las crea el backend
+      allow update: if esPropietario(resource.data.usuarioId); // Marcar como leída
+      allow delete: if esAdmin();
+    }
+  }
+}
