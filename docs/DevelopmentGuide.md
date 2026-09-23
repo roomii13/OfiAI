@@ -56,5 +56,10 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-## TODO: Agregar guía de configuración de Firebase project
-## TODO: Agregar guía de configuración de Stripe webhooks locales
+## Firebase Local
+
+Usar un proyecto Firebase separado para desarrollo y configurar credenciales mediante `.env` en backend y variables `VITE_FIREBASE_*` en web.
+
+## Mercado Pago Local
+
+Configurar `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET` y una URL pública temporal para webhooks cuando se pruebe checkout local.

@@ -4,11 +4,12 @@
  * Calcula métricas de negocio, uso de IA y revenue de forma asíncrona.
  * @modulo Workers
  */
-export const analyticsWorker = async (_periodo: 'diario' | 'semanal' | 'mensual'): Promise<void> => {
-  // TODO: Agregar métricas de trabajos completados
-  // TODO: Calcular MRR (Ingresos Recurrentes Mensuales)
-  // TODO: Calcular tasa de conversión empresa→contratación
-  // TODO: Analizar uso de tokens de Gemini API
-  // TODO: Guardar resumen en colección de analytics
-  throw new Error('analytics.worker.ts no implementado aún');
+import { PeriodoAnalytics, ReporteAnalytics } from '../models/analytics.model';
+import { analyticsService } from '../services/analytics.service';
+
+/**
+ * Genera y guarda un reporte periódico de Analytics.
+ */
+export const analyticsWorker = async (periodo: PeriodoAnalytics): Promise<ReporteAnalytics> => {
+  return analyticsService.generarReporte(periodo);
 };

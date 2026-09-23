@@ -1,3 +1,4 @@
+import type * as FirebaseFirestore from 'firebase-admin/firestore';
 /**
  * @archivo company.repository.ts
  * @descripcion Capa de acceso a datos de Firestore para la colección 'companies'.

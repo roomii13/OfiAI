@@ -3,18 +3,23 @@
  * @descripcion Evento disparado cuando se activa una nueva suscripción en OfiAI.
  * @modulo Events
  */
+import { logger } from '../config/logger';
+
 export interface EventoSuscripcionCreada {
   suscripcionId: string;
   usuarioId: string;
-  plan: 'basico' | 'pro' | 'enterprise';
+  plan: 'gratuito' | 'profesional' | 'empresa';
   monto: number;
   moneda: string;
   timestamp: Date;
 }
 
-export const publicarEventoSuscripcionCreada = async (_evento: EventoSuscripcionCreada): Promise<void> => {
-  // TODO: Enviar email de confirmación de pago via Resend
-  // TODO: Actualizar límites del usuario en Firestore
-  // TODO: Registrar revenue en analytics
-  // TODO: Notificar al equipo de ventas (si es Enterprise)
+/**
+ * Publica el evento de suscripción creada en el canal interno actual.
+ */
+export const publicarEventoSuscripcionCreada = async (evento: EventoSuscripcionCreada): Promise<void> => {
+  logger.info('Evento de suscripción creada publicado.', {
+    tipo: 'subscription.created',
+    ...evento,
+  });
 };

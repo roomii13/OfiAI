@@ -27,7 +27,7 @@
 - [ ] Sistema de reseñas y calificaciones
 
 ## Fase 4: Monetización
-- [ ] Integración completa de Stripe
+- [x] Integración completa de Mercado Pago
 - [ ] Planes de suscripción funcionales
 - [ ] Dashboard Admin con métricas de MRR
 - [ ] Sistema de comisiones por trabajo

@@ -1,0 +1,47 @@
+/** @archivo pricing.css @descripcion Pricing responsive con superficies claras y jerarquia operativa. */
+.pricing-page { max-width: 1200px; margin: auto; color: var(--ofi-text, #26323a); letter-spacing: 0; }
+.pricing-back,.pricing-kicker { display: flex; align-items: center; gap: 8px; }
+.pricing-back { margin-bottom: 18px; color: #426875; }
+.pricing-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 20px; }
+.pricing-header h1 { font-size: 28px; line-height: 1.25; margin: 10px 0; }
+.pricing-header p,.pricing-page p { overflow-wrap: anywhere; line-height: 1.5; margin: 8px 0; }
+.pricing-kicker { font-size: 12px; font-weight: 700; color: #44738b; }
+.pricing-summary { background: #eff8fc; padding: 20px; display: grid; grid-template-columns: 1fr 2fr; gap: 24px; border-block: 1px solid #d7e8ed; }
+.pricing-estimate { padding: 28px 0; display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+.pricing-estimate h2 { font-size: 26px; overflow-wrap: anywhere; margin: 12px 0; }
+.pricing-confidence { background: #edf8f1; padding: 20px; display: flex; flex-direction: column; gap: 12px; align-self: start; }
+.pricing-confidence progress { width: 100%; accent-color: #338165; height: 10px; }
+.pricing-confidence span { font-size: 13px; }
+.pricing-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding-block: 8px 24px; }
+.pricing-page h2 { font-weight: 650; }
+.pricing-columns h2,.pricing-section h2 { font-size: 18px; margin-bottom: 12px; }
+.pricing-page ul,.pricing-page ol { padding-left: 22px; line-height: 1.6; }
+.pricing-page li { margin-block: 8px; overflow-wrap: anywhere; }
+.pricing-section { padding: 22px 0; border-top: 1px solid #dfe5ea; }
+.pricing-page summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+.pricing-page summary svg { display: inline; margin-right: 8px; vertical-align: middle; }
+.pricing-fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin: 18px 0; }
+.pricing-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; min-width: 0; }
+.pricing-fields input,.pricing-fields select,.pricing-fields textarea { width: 100%; min-width: 0; min-height: 44px; }
+.pricing-fields textarea { min-height: 80px; resize: vertical; }
+.pricing-wide { grid-column: 1/-1; }
+.pricing-quotes { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin: 16px 0; }
+.pricing-quote { border: 1px solid #dddfea; border-radius: 8px; padding: 18px; background: #faf9fd; overflow-wrap: anywhere; }
+.pricing-quote h3 { font-size: 16px; margin: 0 0 10px; }
+.pricing-quote strong,.pricing-quote span { display: block; margin-block: 8px; }
+.pricing-quote span { color: #4d6660; font-size: 13px; }
+.pricing-error { background: #fff0f1; padding: 16px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.pricing-status { background: #f0eefb; padding: 16px; }
+.pricing-next { display: flex; gap: 16px; align-items: center; background: #f2f0fa; padding: 20px; }
+.pricing-next div { flex: 1; min-width: 0; }
+.pricing-next svg { flex-shrink: 0; }
+@media (max-width: 760px) {
+ .pricing-summary,.pricing-estimate,.pricing-columns { grid-template-columns: 1fr; gap: 18px; }
+ .pricing-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .pricing-quotes { grid-template-columns: 1fr; }
+ .pricing-header h1 { font-size: 24px; }
+ .pricing-estimate h2 { font-size: 23px; }
+ .pricing-next { flex-wrap: wrap; }
+ .pricing-next a { width: 100%; }
+}
+@media (max-width: 420px) { .pricing-fields { grid-template-columns: 1fr; } }

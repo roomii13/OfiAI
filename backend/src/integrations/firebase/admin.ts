@@ -5,11 +5,14 @@
  * @modulo Integrations/Firebase
  */
 
-import admin from 'firebase-admin';
+import * as admin from 'firebase-admin';
+import { getMessaging } from 'firebase-admin/messaging';
 import { getFirebaseApp, getFirestore, getAuth, getStorage } from '../../config/firebase';
 
 // Asegura que Firebase Admin SDK esté inicializado
 export const firebaseAdminApp = getFirebaseApp();
+/** Cliente modular para notificaciones push. */
+export const firebaseMessaging = getMessaging(firebaseAdminApp);
 
 /**
  * Instancia del SDK principal de Firebase Admin.

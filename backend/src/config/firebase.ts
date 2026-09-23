@@ -5,24 +5,28 @@
  * @modulo Config
  */
 
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
+import { getFirestore as firestoreSdk, type Firestore } from 'firebase-admin/firestore';
+import { getAuth as authSdk, type Auth } from 'firebase-admin/auth';
+import { getStorage as storageSdk, type Storage } from 'firebase-admin/storage';
 import { env } from './env';
 import { logger } from './logger';
 
-let appInicializada: admin.app.App | null = null;
+let appInicializada: App | null = null;
+let firestoreConfigurado = false;
 
 /**
  * Inicializa la aplicación de Firebase Admin SDK si no ha sido inicializada previamente.
  * Soporta autenticación mediante Service Account o credenciales por defecto en Google Cloud Run.
  * @returns Instancia de la aplicación inicializada de Firebase.
  */
-export const initializeFirebase = (): admin.app.App => {
+export const initializeFirebase = (): App => {
   if (appInicializada) {
     return appInicializada;
   }
 
-  if (admin.apps.length > 0) {
-    appInicializada = admin.apps[0]!;
+  if (getApps().length > 0) {
+    appInicializada = getApps()[0]!;
     return appInicializada;
   }
 
@@ -33,8 +37,8 @@ export const initializeFirebase = (): admin.app.App => {
       env.FIREBASE_PRIVATE_KEY;
 
     if (tieneCredencialesDirectas) {
-      appInicializada = admin.initializeApp({
-        credential: admin.credential.cert({
+      appInicializada = initializeApp({
+        credential: cert({
           projectId: env.FIREBASE_PROJECT_ID,
           clientEmail: env.FIREBASE_CLIENT_EMAIL,
           privateKey: env.FIREBASE_PRIVATE_KEY,
@@ -44,7 +48,7 @@ export const initializeFirebase = (): admin.app.App => {
       logger.info('🔥 Firebase Admin SDK inicializado con credenciales explícitas de servicio.');
     } else {
       // Fallback a Application Default Credentials (ADC) en entorno Google Cloud Run
-      appInicializada = admin.initializeApp({
+      appInicializada = initializeApp({
         projectId: env.FIREBASE_PROJECT_ID || env.GCP_PROJECT_ID,
         storageBucket: env.FIREBASE_STORAGE_BUCKET,
       });
@@ -61,33 +65,38 @@ export const initializeFirebase = (): admin.app.App => {
 /**
  * Obtiene la instancia activa de la aplicación de Firebase Admin.
  */
-export const getFirebaseApp = (): admin.app.App => {
+export const getFirebaseApp = (): App => {
   return initializeFirebase();
 };
 
 /**
- * Obtiene el cliente de base de datos Firestore.
- * @returns Instancia de admin.firestore.Firestore.
+ * Obtiene el cliente Firestore para la base indicada en FIREBASE_DATABASE_ID.
+ * @returns Instancia de Firestore.
  */
-export const getFirestore = (): admin.firestore.Firestore => {
+export const getFirestore = (): Firestore => {
   const app = getFirebaseApp();
-  return admin.firestore(app);
+  const db = firestoreSdk(app, env.FIREBASE_DATABASE_ID);
+  if (!firestoreConfigurado) {
+    db.settings({ ignoreUndefinedProperties: true });
+    firestoreConfigurado = true;
+  }
+  return db;
 };
 
 /**
  * Obtiene el cliente de autenticación de Firebase.
- * @returns Instancia de admin.auth.Auth.
+ * @returns Instancia de Firebase Auth.
  */
-export const getAuth = (): admin.auth.Auth => {
+export const getAuth = (): Auth => {
   const app = getFirebaseApp();
-  return admin.auth(app);
+  return authSdk(app);
 };
 
 /**
  * Obtiene el cliente del servicio de almacenamiento de Firebase Storage.
- * @returns Instancia de admin.storage.Storage.
+ * @returns Instancia de Firebase Storage.
  */
-export const getStorage = (): admin.storage.Storage => {
+export const getStorage = (): Storage => {
   const app = getFirebaseApp();
-  return admin.storage(app);
+  return storageSdk(app);
 };

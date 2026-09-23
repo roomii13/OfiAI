@@ -46,5 +46,13 @@ test: agregar tests del agente de pricing
 chore: actualizar dependencias de seguridad
 ```
 
-## TODO: Agregar guía de revisión de código (PR guidelines)
-## TODO: Configurar ESLint y Prettier con las reglas del proyecto
+## Revisión de Código
+
+- Cada cambio debe compilar en su paquete.
+- No se aceptan stubs vacíos ni pseudocódigo.
+- Los cambios de negocio deben incluir prueba o justificación explícita.
+- No se modifican carpetas, nombres ni contratos públicos sin motivo documentado.
+
+## Formato
+
+El proyecto usa TypeScript estricto. ESLint queda disponible por paquete y las reglas deben mantenerse alineadas con los scripts locales.

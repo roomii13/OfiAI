@@ -8,6 +8,7 @@
 import app from './app';
 import { env } from './config/env';
 import { logger } from './config/logger';
+import { schedulerService } from './scheduler/scheduler.service';
 
 const PORT = env.PORT || 8080;
 
@@ -15,11 +16,12 @@ const server = app.listen(PORT, () => {
   logger.info(`🚀 OfiAI Backend corriendo en puerto ${PORT}`);
   logger.info(`📌 Entorno: ${env.NODE_ENV}`);
   logger.info(`🌎 Región LATAM - Español Latino`);
+  schedulerService.start();
 });
 
-// TODO: Configurar graceful shutdown para Google Cloud Run
 process.on('SIGTERM', () => {
   logger.info('Señal SIGTERM recibida. Cerrando servidor...');
+  schedulerService.stop();
   server.close(() => {
     logger.info('Servidor cerrado correctamente.');
     process.exit(0);

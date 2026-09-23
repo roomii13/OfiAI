@@ -41,7 +41,7 @@ Routes → Controllers → Services → Repositories → Database (Firestore)
 | Base de Datos | Firebase Firestore | Tiempo real, escalable, sin servidor |
 | Auth | Firebase Authentication | Integración nativa, segura |
 | IA | Google Gemini API | Mejor desempeño en español LATAM |
-| Pagos | Stripe | Estándar de la industria SaaS |
+| Pagos | Mercado Pago | Proveedor principal para LATAM |
 | Emails | Resend | API moderna, mejor deliverability |
 | Cloud | Google Cloud Run | Escalado automático, pago por uso |
 | Cache | Redis (futuro) | Reducir latencia y costos de BD |

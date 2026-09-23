@@ -33,6 +33,13 @@
 - **SAM** (Mercado Disponible Accesible): $280M USD
 - **SOM** (Mercado Obtenible): $28M USD (primeros 3 años)
 
-## TODO: Agregar análisis de competidores
-## TODO: Agregar estrategia de adquisición de clientes
-## TODO: Agregar proyecciones financieras detalladas
+## Competidores y Adquisición
+
+Competidores indirectos: marketplaces generalistas, agencias locales, grupos de mensajería y referencias informales.
+
+Estrategia inicial:
+
+- Captación de empresas con necesidad recurrente de mantenimiento.
+- Onboarding de profesionales verificados por ciudad.
+- Referidos entre profesionales con buena reputación.
+- Contenido local por categoría de oficio y país.

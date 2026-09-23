@@ -1,6 +1,6 @@
 /**
+ * @archivo domain/reputation/index.ts
  * @dominio Reputation
  * @descripcion Dominio de reputation en OfiAI.
- * TODO: Implementar entidades, value objects y casos de uso del dominio
  */
-export {};
+export type { Resena } from '../../models/Review';

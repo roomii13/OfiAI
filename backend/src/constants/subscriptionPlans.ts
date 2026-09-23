@@ -4,50 +4,59 @@
  * Incluye límites, precios y características por plan y por país.
  */
 export const PLANES_SUSCRIPCION = {
-  BASICO: {
-    id: 'basico',
-    nombre: 'Básico',
-    // TODO: Definir precios por país (MXN, COP, CLP, ARS, PEN)
-    precioMensualUSD: 29,
+  GRATUITO: {
+    id: 'gratuito',
+    nombre: 'Gratuito',
+    precioMensual: 0,
     limitesEmpresa: {
-      trabajosPublicados: 3,
-      perfilesVisibles: 10,
-      consultasIA: 20,
+      trabajosPublicados: 1,
+      perfilesVisibles: 5,
+      consultasIA: 5,
     },
     limitesProfesional: {
-      propuestasEnviadas: 10,
-      consultasIA: 10,
+      propuestasEnviadas: 3,
+      consultasIA: 5,
     },
   },
-  PRO: {
-    id: 'pro',
-    nombre: 'Pro',
-    precioMensualUSD: 79,
+  PROFESIONAL: {
+    id: 'profesional',
+    nombre: 'Profesional',
+    precioMensual: 9900,
     limitesEmpresa: {
-      trabajosPublicados: 20,
-      perfilesVisibles: 100,
-      consultasIA: 100,
+      trabajosPublicados: 5,
+      perfilesVisibles: 40,
+      consultasIA: 40,
     },
     limitesProfesional: {
       propuestasEnviadas: 50,
       consultasIA: 50,
     },
   },
-  ENTERPRISE: {
-    id: 'enterprise',
-    nombre: 'Enterprise',
-    precioMensualUSD: 199,
+  EMPRESA: {
+    id: 'empresa',
+    nombre: 'Empresa',
+    precioMensual: 39900,
     limitesEmpresa: {
-      trabajosPublicados: -1,   // -1 = ilimitado
+      trabajosPublicados: -1,
       perfilesVisibles: -1,
-      consultasIA: 500,
+      consultasIA: 200,
     },
     limitesProfesional: {
       propuestasEnviadas: -1,
-      consultasIA: 200,
+      consultasIA: 100,
     },
   },
 } as const;
 
-// TODO: Agregar precios en moneda local por país
-// TODO: Agregar planes anuales con descuento
+export const PLANES_POR_ID = {
+  gratuito: PLANES_SUSCRIPCION.GRATUITO,
+  profesional: PLANES_SUSCRIPCION.PROFESIONAL,
+  empresa: PLANES_SUSCRIPCION.EMPRESA,
+} as const;
+
+export type IdPlanSuscripcion = keyof typeof PLANES_POR_ID;
+
+/**
+ * Obtiene la configuración de un plan por su identificador público.
+ */
+export const obtenerPlanSuscripcion = (plan: IdPlanSuscripcion) => PLANES_POR_ID[plan];

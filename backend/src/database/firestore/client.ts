@@ -1,27 +1,42 @@
+import type * as FirebaseFirestore from 'firebase-admin/firestore';
 /**
  * @archivo client.ts
  * @descripcion Cliente centralizado de Firestore para OfiAI.
- * Provee acceso tipado a las colecciones de la base de datos.
+ * Provee acceso tipado a colecciones y helpers de conversión de fechas.
  * @modulo Database
  */
-// TODO: Implementar cliente Firestore cuando Firebase esté configurado
-// import { getFirestore } from '../../config/firebase';
-// import { COLECCIONES } from './collections';
+import { getFirestore } from '../../config/firebase';
 
 /**
  * Retorna una referencia tipada a una colección de Firestore.
- * TODO: Implementar con tipado genérico para cada colección
  */
-export const obtenerColeccion = (_nombre: string) => {
-  // TODO: return getFirestore().collection(nombre);
-  throw new Error('Firestore no configurado. Revisa src/config/firebase.ts');
+export const obtenerColeccion = <T = FirebaseFirestore.DocumentData>(
+  nombre: string
+): FirebaseFirestore.CollectionReference<T> => {
+  return getFirestore().collection(nombre) as FirebaseFirestore.CollectionReference<T>;
 };
 
 /**
- * Helper para convertir timestamps de Firestore a Date de JavaScript.
- * TODO: Implementar conversión de Timestamp
+ * Convierte Date, Timestamp de Firestore o valores serializados a Date.
  */
-export const convertirTimestamp = (_timestamp: unknown): Date => {
-  // TODO: return (timestamp as admin.firestore.Timestamp).toDate();
+export const convertirTimestamp = (timestamp: unknown): Date => {
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+
+  if (
+    typeof timestamp === 'object' &&
+    timestamp !== null &&
+    'toDate' in timestamp &&
+    typeof (timestamp as { toDate: () => Date }).toDate === 'function'
+  ) {
+    return (timestamp as { toDate: () => Date }).toDate();
+  }
+
+  if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+    const fecha = new Date(timestamp);
+    return Number.isNaN(fecha.getTime()) ? new Date() : fecha;
+  }
+
   return new Date();
 };

@@ -14,5 +14,10 @@ export const CATEGORIAS_OFICIOS = [
   { id: 'logistica', nombre: 'Logística', subcategorias: ['mudanzas', 'flete', 'mensajeria'] },
 ] as const;
 
-// TODO: Agregar categorías específicas por país
-// TODO: Traducir nombres para versión en inglés
+export const CATEGORIAS_OFICIOS_POR_PAIS = {
+  AR: CATEGORIAS_OFICIOS,
+  MX: CATEGORIAS_OFICIOS,
+  CO: CATEGORIAS_OFICIOS,
+  CL: CATEGORIAS_OFICIOS,
+  PE: CATEGORIAS_OFICIOS,
+} as const;

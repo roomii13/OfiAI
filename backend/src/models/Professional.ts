@@ -7,6 +7,14 @@
 import { CodigoPais } from './User';
 
 export interface Profesional {
+  /** Campos opcionales de matching; status solo puede administrarse desde backend. */
+  status?: 'active' | 'inactive' | 'suspended';
+  activo?: boolean;
+  habilidades?: string[];
+  provincia?: string;
+  radioServicioKm?: number;
+  precioMinimo?: number;
+  tasaRespuesta?: number;
   id: string;
   usuarioId: string;          // Referencia al documento en colección 'users'
   nombre: string;
@@ -18,6 +26,10 @@ export interface Profesional {
   portafolio?: string[];      // URLs de imágenes de trabajos anteriores
   aniosExperiencia: number;
   tarifaHora?: number;        // En moneda local del país
+  /** Cobertura declarada de la tarifa; su ausencia no se interpreta como exclusion. */
+  tarifaHoraMateriales?: 'included' | 'excluded' | 'unknown';
+  tarifaHoraImpuestos?: 'included' | 'excluded' | 'unknown';
+  tarifaHoraActualizadaAt?: Date;
   tarifaServicio?: number;    // Tarifa por proyecto
   moneda: string;             // CLP, MXN, COP, ARS, PEN, etc.
   disponible: boolean;
@@ -36,6 +48,10 @@ export interface Profesional {
   puntajeReputacionIA?: number;
   fechaCreacion: Date;
   fechaActualizacion: Date;
-  // TODO: Agregar certificaciones y cursos
-  // TODO: Agregar disponibilidad horaria
+  certificaciones?: string[];
+  disponibilidadHoraria?: Array<{
+    dia: string;
+    desde: string;
+    hasta: string;
+  }>;
 }

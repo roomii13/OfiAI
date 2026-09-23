@@ -7,7 +7,7 @@
 
 import {
   createFirebaseUser,
-  getFirebaseUserByEmail,
+  verifyFirebasePassword,
   generatePasswordResetLink,
   revokeUserRefreshTokens,
 } from '../integrations/firebase/auth';
@@ -24,6 +24,7 @@ import {
 } from '../validators/auth.validator';
 import { ApiError } from '../middleware/error.middleware';
 import { logger } from '../config/logger';
+import { enviarEmailResend } from '../integrations/resend';
 
 export interface RespuestaAuth {
   usuario: Usuario;
@@ -31,7 +32,13 @@ export interface RespuestaAuth {
   perfilEspecifico?: Empresa | Profesional | null;
 }
 
+/** Coordina autenticacion verificada y perfiles de usuario. */
 class AuthService {
+  /** Guarda preferencias de canales exclusivamente para la cuenta autenticada. */
+  async updatePreferences(uid: string, preferences: NonNullable<Usuario['preferenciasNotificaciones']>): Promise<void> {
+    await userRepository.update(uid, { preferenciasNotificaciones: preferences });
+  }
+
   /**
    * Registra una nueva empresa en OfiAI.
    * Crea el usuario en Firebase Auth, asigna claim 'empresa', guarda el Usuario en Firestore y crea el perfil Empresa.
@@ -181,6 +188,7 @@ class AuthService {
    * Genera un custom token para autenticación segura en el SDK de cliente de Firebase.
    */
   async login(datos: DatosLogin): Promise<RespuestaAuth> {
+    const verifiedUid = await verifyFirebasePassword(datos.email, datos.password);
     const usuario = await userRepository.findByEmail(datos.email);
     if (!usuario) {
       throw new ApiError('Credenciales de acceso inválidas.', 401);
@@ -191,8 +199,7 @@ class AuthService {
     }
 
     // Verificar existencia del registro en Firebase Auth
-    const fbUser = await getFirebaseUserByEmail(datos.email);
-    if (!fbUser) {
+    if (verifiedUid !== usuario.id) {
       throw new ApiError('Credenciales de acceso inválidas.', 401);
     }
 
@@ -211,18 +218,18 @@ class AuthService {
   /**
    * Solicita un enlace de recuperación de contraseña vía Firebase Auth.
    */
-  async recoverPassword(email: string): Promise<{ link: string }> {
+  async recoverPassword(email: string): Promise<void> {
     const usuario = await userRepository.findByEmail(email);
     if (!usuario) {
       // Por seguridad no se revela si el email existe o no
       logger.info(`Solicitud de recuperación de clave para email no registrado: ${email}`);
-      return { link: '' };
+      return;
     }
 
     const link = await generatePasswordResetLink(email);
     logger.info(`Enlace de recuperación generado para ${email}`);
 
-    return { link };
+    await enviarEmailResend({ to: email, subject: 'Restablecer contrasena de OfiAI', text: `Restablece tu contrasena en este enlace: ${link}` });
   }
 
   /**

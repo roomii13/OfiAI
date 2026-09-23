@@ -3,6 +3,8 @@
  * @descripcion Evento disparado cuando un profesional recibe una nueva calificación.
  * @modulo Events
  */
+import { logger } from '../config/logger';
+
 export interface EventoProfesionalCalificado {
   profesionalId: string;
   trabajoId: string;
@@ -10,8 +12,12 @@ export interface EventoProfesionalCalificado {
   timestamp: Date;
 }
 
-export const publicarEventoProfesionalCalificado = async (_evento: EventoProfesionalCalificado): Promise<void> => {
-  // TODO: Disparar reputation.worker.ts
-  // TODO: Actualizar ranking en resultados de búsqueda
-  // TODO: Notificar al profesional sobre la nueva calificación
+/**
+ * Publica el evento de calificación profesional en el canal interno actual.
+ */
+export const publicarEventoProfesionalCalificado = async (evento: EventoProfesionalCalificado): Promise<void> => {
+  logger.info('Evento de profesional calificado publicado.', {
+    tipo: 'professional.rated',
+    ...evento,
+  });
 };

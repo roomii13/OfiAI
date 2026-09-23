@@ -17,7 +17,7 @@ import {
 } from "react";
 
 
-type Theme =
+export type Theme =
   | "light"
   | "dark";
 

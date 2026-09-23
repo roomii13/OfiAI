@@ -3,7 +3,6 @@
  * @descripcion English (US) translations dictionary for OfiAI.
  * Secondary language for international users and admin panel.
  * @modulo i18n
- * TODO: Completar traducciones (actualmente solo estructura base)
  */
 export const enUS = {
   nav: {

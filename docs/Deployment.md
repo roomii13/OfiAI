@@ -6,6 +6,7 @@
 - Google Cloud CLI instalado
 - Proyecto GCP creado
 - Docker instalado
+- Firebase CLI instalado para reglas e índices
 
 ### Comandos de Despliegue
 ```bash
@@ -32,11 +33,21 @@ gcloud run deploy ofiai-backend \
 ```
 
 ### Variables de Entorno en Cloud Run
+Usar `backend/.env.example` como plantilla y cargar secretos reales en Secret Manager. El backend mantiene Firestore/Firebase Admin como base principal.
+
 ```bash
 # Configurar secretos via Google Cloud Secret Manager
 gcloud secrets create GEMINI_API_KEY --data-file=- <<< "tu-api-key"
 gcloud secrets create FIREBASE_PRIVATE_KEY --data-file=- <<< "tu-private-key"
 ```
+
+Health checks:
+
+- `GET /api/v1/health/liveness`
+- `GET /api/v1/health/readiness`
+- `GET /api/v1/health`
+
+El readiness devuelve `503` si faltan credenciales críticas.
 
 ## Web en Firebase Hosting
 
@@ -46,6 +57,19 @@ npm run build
 cd ../shared
 firebase deploy --only hosting
 ```
+
+Configurar `VITE_ENABLE_DEMO_ACCESS=false` para producción.
+
+## Firebase Firestore y Storage
+
+Proyecto base: `ofiai-2f357`.
+
+```bash
+cd shared
+firebase deploy --only firestore:rules,firestore:indexes,storage
+```
+
+Validar reglas con Firebase Emulator Suite antes de producción.
 
 ## Mobile con EAS Build
 
@@ -57,6 +81,22 @@ npx eas build --platform android
 npx eas build --platform ios
 ```
 
-## TODO: Agregar pipeline de CI/CD con GitHub Actions
-## TODO: Agregar configuración de variables de entorno por ambiente
-## TODO: Agregar checklist de pre-deployment
+## CI/CD
+
+Pipeline recomendado:
+
+- Backend: `npm run build` y `npm test`.
+- Web: `npm run build`.
+- Mobile: `npm run typecheck`.
+- Despliegue manual aprobado para staging y producción.
+
+## Checklist Pre-Deployment
+
+- Variables por ambiente cargadas en Secret Manager o proveedor equivalente.
+- Webhook de Mercado Pago configurado.
+- Dominio de Resend verificado.
+- WhatsApp Business aprobado.
+- Firestore rules revisadas.
+- Firestore indexes desplegados.
+- Storage rules desplegadas.
+- Acceso demo deshabilitado en web y mobile.

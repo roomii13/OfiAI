@@ -5,6 +5,7 @@
  * @modulo Monitoring
  */
 import { Request, Response } from 'express';
+import { obtenerReadinessProduccion } from '../config/productionReadiness';
 
 export interface EstadoServicio {
   nombre: string;
@@ -23,18 +24,43 @@ export interface RespuestaHealth {
 
 /**
  * Handler del endpoint GET /health
- * TODO: Verificar conexión a Firestore
- * TODO: Verificar disponibilidad de Gemini API
- * TODO: Verificar conexión a Redis (si está habilitado)
- * TODO: Verificar estado de Stripe webhooks
+ * Expone el estado básico del proceso.
  */
 export const healthCheck = async (_req: Request, res: Response): Promise<void> => {
+  const readiness = obtenerReadinessProduccion();
   const respuesta: RespuestaHealth = {
-    estado: 'saludable',
+    estado: readiness.estado,
     version: process.env.API_VERSION || 'v1',
     timestamp: new Date().toISOString(),
-    servicios: [],             // TODO: Agregar estado de cada servicio
+    servicios: readiness.servicios,
     uptimeSegundos: process.uptime(),
   };
-  res.status(200).json(respuesta);
+  res.status(readiness.estado === 'critico' ? 503 : 200).json(respuesta);
+};
+
+/**
+ * Handler del endpoint GET /health/liveness.
+ * Confirma que el proceso HTTP está vivo.
+ */
+export const livenessCheck = async (_req: Request, res: Response): Promise<void> => {
+  res.status(200).json({
+    estado: 'operacional',
+    servicio: 'OfiAI Backend',
+    version: process.env.API_VERSION || 'v1',
+    timestamp: new Date().toISOString(),
+    uptimeSegundos: process.uptime(),
+  });
+};
+
+/**
+ * Handler del endpoint GET /health/readiness.
+ * Informa si la configuración necesaria está presente sin exponer secretos.
+ */
+export const readinessCheck = async (_req: Request, res: Response): Promise<void> => {
+  const readiness = obtenerReadinessProduccion();
+
+  res.status(readiness.estado === 'critico' ? 503 : 200).json({
+    ...readiness,
+    timestamp: new Date().toISOString(),
+  });
 };

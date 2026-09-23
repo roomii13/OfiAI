@@ -1,21 +1,67 @@
 /**
  * @archivo redis.provider.ts
- * @descripcion Proveedor de Redis para caché en producción en OfiAI.
- * TODO: Implementar cuando se active REDIS_ENABLED=true en producción.
+ * @descripcion Proveedor compatible con Redis para caché en producción de OfiAI.
+ * Mantiene una implementación funcional en memoria hasta incorporar un cliente Redis externo.
  * @modulo Cache
  */
-// TODO: Instalar: npm install ioredis @types/ioredis
-// import Redis from 'ioredis';
-// import { env } from '../config/env';
-// import { ServicioCache } from './cache.service';
+import { logger } from '../config/logger';
+import { ServicioCache } from './cache.service';
 
 /**
- * Implementación de caché usando Redis.
- * TODO: Implementar todos los métodos de ServicioCache
- * TODO: Configurar pool de conexiones
- * TODO: Implementar circuit breaker para fallos de Redis
- * TODO: Agregar métricas de hit/miss ratio
+ * Implementación compatible con ServicioCache usada cuando Redis no está conectado.
  */
-// export class CacheRedis implements ServicioCache { ... }
+export class CacheRedis implements ServicioCache {
+  private readonly almacen = new Map<string, { valor: unknown; expira: number }>();
 
-export {}; // Placeholder hasta implementar Redis
+  /**
+   * Obtiene un valor cacheado o null si expiró.
+   */
+  async obtener<T>(clave: string): Promise<T | null> {
+    const entrada = this.almacen.get(clave);
+
+    if (!entrada) {
+      return null;
+    }
+
+    if (Date.now() > entrada.expira) {
+      this.almacen.delete(clave);
+      return null;
+    }
+
+    return entrada.valor as T;
+  }
+
+  /**
+   * Guarda un valor con TTL compatible con Redis.
+   */
+  async establecer<T>(clave: string, valor: T, ttlSegundos = 300): Promise<void> {
+    this.almacen.set(clave, {
+      valor,
+      expira: Date.now() + ttlSegundos * 1000,
+    });
+  }
+
+  /**
+   * Elimina una clave específica.
+   */
+  async eliminar(clave: string): Promise<void> {
+    this.almacen.delete(clave);
+  }
+
+  /**
+   * Elimina claves por patrón con comodín `*`.
+   */
+  async limpiarPorPatron(patron: string): Promise<void> {
+    const regex = new RegExp(`^${patron.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
+    let eliminadas = 0;
+
+    for (const clave of this.almacen.keys()) {
+      if (regex.test(clave)) {
+        this.almacen.delete(clave);
+        eliminadas += 1;
+      }
+    }
+
+    logger.debug('CacheRedis compatible limpió claves por patrón.', { patron, eliminadas });
+  }
+}

@@ -49,6 +49,14 @@ La arquitectura está diseñada para migrar de Gemini API directo a Vertex AI Ag
 - Los prompts están centralizados en `ai/prompts/`
 - Las herramientas en `ai/tools/` son agnósticas al orquestador
 
-## TODO: Documentar prompts detallados de cada agente
-## TODO: Agregar métricas de precisión de matching
-## TODO: Documentar proceso de evaluación y mejora de prompts
+## Prompts y Evaluación
+
+Los prompts detallados viven en `PromptEngineering.md` y en `backend/src/ai/prompts/ofiai.prompts.ts`.
+
+Métricas iniciales:
+
+- Aceptación del top 3 de matching.
+- Precisión de categoría clasificada.
+- Tiempo hasta contratación.
+- Correcciones manuales de ranking.
+- Conversaciones resueltas sin escalamiento humano.

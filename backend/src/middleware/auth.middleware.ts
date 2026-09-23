@@ -9,6 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getAuth } from '../config/firebase';
 import { logger } from '../config/logger';
 import { RolUsuario } from '../models/User';
+import { userRepository } from '../repositories/user.repository';
 
 /**
  * Extensión de la interfaz Request de Express para incluir los datos del usuario autenticado.
@@ -57,10 +58,15 @@ export const verificarAutenticacion = async (
 
   try {
     const auth = getAuth();
-    const tokenDecodificado = await auth.verifyIdToken(token);
+    const tokenDecodificado = await auth.verifyIdToken(token, true);
 
     // Extraer el rol desde custom claims o asignar 'profesional' por defecto
-    const rolUsuario = (tokenDecodificado.rol as RolUsuario) || 'profesional';
+    const usuario = await userRepository.findById(tokenDecodificado.uid);
+    if (!usuario || !usuario.activo || !['empresa', 'profesional', 'admin'].includes(usuario.rol)) {
+      res.status(403).json({ exito: false, mensaje: 'Cuenta deshabilitada o sin un rol valido.' });
+      return;
+    }
+    const rolUsuario = usuario.rol;
 
     req.usuario = {
       uid: tokenDecodificado.uid,

@@ -2,6 +2,11 @@
 
 ## Estrategia de Tests
 
+Validacion de Matching del 23/09/2026: backend 91 tests, web 45, mobile 8; builds, typecheck, lint backend/web y export Android correctos.
+Las pruebas de repositorios usan adaptador transaccional aislado; adicionalmente se probo un Job temporal en Firestore real y se limpio.
+No equivalen a emulador de reglas, despliegue Cloudflare o prueba en telefono fisico.
+Comandos, evidencia y archivos exactos: [Matching Agent](MatchingAgent.md).
+
 ### Pirámide de Tests
 1. **Unit Tests** (70%): Servicios, utilidades, validadores
 2. **Integration Tests** (20%): Endpoints de API con Firestore
@@ -32,8 +37,19 @@ backend/src/tests/
     └── trabajos.fixture.ts
 ```
 
-## TODO: Configurar Jest con ts-jest
-## TODO: Configurar mocks de Firebase Admin SDK
-## TODO: Configurar mocks de Gemini API
-## TODO: Agregar tests de los validadores Zod
-## TODO: Agregar tests de los middlewares de auth y roles
+## Estado Actual
+
+Jest con ts-jest está configurado en backend.
+
+Suites iniciales:
+
+- Unitarias: herramientas de IA.
+- Integración: planes de suscripción.
+- API: health check Express.
+
+## Próxima Cobertura
+
+- Validadores Zod críticos.
+- Middlewares de auth y roles.
+- Repositorios con Firebase Emulator Suite.
+- Webhooks de Mercado Pago con payloads firmados.

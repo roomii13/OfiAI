@@ -8,6 +8,34 @@ import { firebaseAuth } from './admin';
 import type { UserRecord, DecodedIdToken } from 'firebase-admin/auth';
 import { RolUsuario } from '../../models/User';
 import { logger } from '../../config/logger';
+import { env } from '../../config/env';
+import { ApiError } from '../../middleware/error.middleware';
+
+/** Verifica la clave con Firebase Identity Toolkit antes de emitir una sesion. */
+export async function verifyFirebasePassword(email: string, password: string): Promise<string> {
+  if (!env.FIREBASE_API_KEY) {
+    throw new ApiError('Firebase Authentication no esta configurado.', 503);
+  }
+  const emulator = process.env.NODE_ENV === 'test' && process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  const origin = emulator ? `http://${emulator}/identitytoolkit.googleapis.com` : 'https://identitytoolkit.googleapis.com';
+  let response: Response;
+  try {
+    response = await fetch(`${origin}/v1/accounts:signInWithPassword?key=${encodeURIComponent(env.FIREBASE_API_KEY)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch {
+    throw new ApiError('El servicio de autenticacion no esta disponible.', 503);
+  }
+  if (!response.ok) {
+    throw new ApiError('Credenciales de acceso invalidas.', response.status === 429 ? 429 : 401);
+  }
+  const result = await response.json() as { localId?: string };
+  if (!result.localId) throw new ApiError('Credenciales de acceso invalidas.', 401);
+  return result.localId;
+}
 
 /**
  * Crea un nuevo usuario en Firebase Authentication y le asigna su rol como custom claim.

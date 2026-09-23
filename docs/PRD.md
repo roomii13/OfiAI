@@ -37,6 +37,16 @@ OfiAI es una plataforma SaaS B2B2C impulsada por Inteligencia Artificial que con
 - NPS (Net Promoter Score) > 50
 - Tasa de retención de empresas > 70% a 3 meses
 
-## TODO: Completar con historias de usuario detalladas por rol
-## TODO: Agregar wireframes y mockups de las pantallas principales
-## TODO: Agregar criterios de aceptación por feature
+## Historias Principales
+
+- Como empresa, quiero publicar trabajos y recibir profesionales compatibles para cubrir servicios rápido.
+- Como profesional, quiero ver oportunidades relevantes para aumentar mis ingresos.
+- Como administrador, quiero métricas y controles para operar la plataforma.
+
+## Criterios de Aceptación
+
+- Registro y login por rol disponibles.
+- Dashboards diferenciados.
+- Matching IA con ranking explicable.
+- Suscripciones con Mercado Pago.
+- Notificaciones con reintentos.

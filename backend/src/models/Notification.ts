@@ -16,6 +16,7 @@ export type TipoNotificacion =
   | 'alerta_sistema';
 
 export type CanalNotificacion = 'push' | 'email' | 'sms' | 'whatsapp' | 'in_app';
+export type EstadoNotificacion = 'pendiente' | 'enviada' | 'reintentando' | 'fallida';
 
 export interface Notificacion {
   id: string;
@@ -24,12 +25,21 @@ export interface Notificacion {
   titulo: string;
   mensaje: string;
   canal: CanalNotificacion;
+  estado: EstadoNotificacion;
   leida: boolean;
   enviada: boolean;
-  datos?: Record<string, unknown>;  // Datos adicionales según el tipo
+  intentos: number;
+  maxIntentos: number;
+  datos?: Record<string, unknown>;
+  destinatario?: {
+    email?: string;
+    telefono?: string;
+    pushToken?: string;
+  };
   fechaCreacion: Date;
   fechaLeida?: Date;
   fechaEnvio?: Date;
-  // TODO: Agregar soporte para notificaciones programadas
-  // TODO: Agregar preferencias de notificación por usuario
+  programadaPara?: Date;
+  proximoIntento?: Date;
+  errorEnvio?: string;
 }

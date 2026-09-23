@@ -27,7 +27,7 @@ Registro de decisiones arquitectónicas importantes tomadas durante el desarroll
 **Fecha**: 2026-07-20
 **Estado**: Aceptado
 
-**Contexto**: El proyecto usa múltiples servicios externos (Firebase, Gemini, Stripe, Resend, WhatsApp, Google Maps).
+**Contexto**: El proyecto usa múltiples servicios externos (Firebase, Gemini, Mercado Pago, Resend, WhatsApp, Google Maps).
 
 **Decisión**: Crear `src/integrations/` como capa de abstracción dedicada. Los servicios de negocio nunca importan SDKs externos directamente.
 
@@ -82,4 +82,6 @@ Registro de decisiones arquitectónicas importantes tomadas durante el desarroll
 
 **Decisión**: Abstracción `ServicioCache` con implementación en memoria para desarrollo y Redis para producción (cuando `REDIS_ENABLED=true`).
 
-## TODO: Agregar más ADRs conforme se tomen decisiones importantes
+## Registro Vivo
+
+Las nuevas decisiones deben agregarse como ADR incremental con fecha, contexto, decisión, consecuencias y alternativas descartadas.

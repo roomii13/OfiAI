@@ -9,7 +9,17 @@ import { Response, NextFunction } from 'express';
 import { RequestAutenticada } from '../middleware/auth.middleware';
 import { authService } from '../services/auth.service';
 
+/** Adapta solicitudes de autenticacion y cuenta al servicio. */
 class AuthController {
+  /** Actualiza preferencias de notificacion de la cuenta autenticada. */
+  updatePreferences = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.usuario) { res.status(401).json({ exito: false }); return; }
+      await authService.updatePreferences(req.usuario.uid, req.body);
+      res.json({ exito: true, datos: req.body });
+    } catch (error) { next(error); }
+  };
+
   /**
    * Registra una nueva empresa en la plataforma.
    */

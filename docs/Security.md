@@ -26,6 +26,8 @@
 - Usar `.env.example` como plantilla
 - En producción: usar Google Cloud Secret Manager
 - Rotar claves API regularmente
+- Mantener `VITE_ENABLE_DEMO_ACCESS=false` y `EXPO_PUBLIC_ENABLE_DEMO_ACCESS=false` en producción.
+- No pegar credenciales reales en documentación, commits ni logs.
 
 ## Rate Limiting
 
@@ -33,6 +35,18 @@
 - Límite auth: 10 req/hora por IP (prevenir brute force)
 - Límite IA: 20 req/min por usuario (controlar costos Gemini)
 
-## TODO: Agregar checklist de seguridad para revisión de código
-## TODO: Agregar política de manejo de datos personales (GDPR/LGPD)
-## TODO: Agregar proceso de reporte de vulnerabilidades
+## Checklist de Seguridad
+
+- Validar roles en cada ruta privada.
+- No exponer claves de Gemini, Mercado Pago, Firebase Admin, Resend ni WhatsApp en clientes.
+- Revisar reglas Firestore antes de producción.
+- Desplegar reglas de Storage con escritura restringida a dueños o backend/admin.
+- Sanitizar errores externos en respuestas HTTP.
+
+## Datos Personales
+
+Los datos personales deben recolectarse con propósito explícito, retención definida y posibilidad de baja según normativa aplicable en LATAM.
+
+## Reporte de Vulnerabilidades
+
+Las vulnerabilidades se reportan al equipo administrador del repositorio con severidad, pasos de reproducción e impacto esperado.

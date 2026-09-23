@@ -15,11 +15,11 @@ export interface ServicioCache {
 
 /**
  * Implementación en memoria para desarrollo.
- * TODO: Reemplazar con RedisCache en producción cuando REDIS_ENABLED=true
- * TODO: Implementar estrategia de evicción LRU
+ * Usa expiración por TTL y una política simple de recorte por capacidad.
  */
 class CacheMemoria implements ServicioCache {
   private almacen = new Map<string, { valor: unknown; expira: number }>();
+  private readonly capacidadMaxima = 1000;
 
   async obtener<T>(clave: string): Promise<T | null> {
     const entrada = this.almacen.get(clave);
@@ -32,6 +32,13 @@ class CacheMemoria implements ServicioCache {
   }
 
   async establecer<T>(clave: string, valor: T, ttlSegundos = 300): Promise<void> {
+    if (this.almacen.size >= this.capacidadMaxima && !this.almacen.has(clave)) {
+      const claveMasAntigua = this.almacen.keys().next().value as string | undefined;
+      if (claveMasAntigua) {
+        this.almacen.delete(claveMasAntigua);
+      }
+    }
+
     this.almacen.set(clave, { valor, expira: Date.now() + ttlSegundos * 1000 });
   }
 
@@ -40,8 +47,17 @@ class CacheMemoria implements ServicioCache {
   }
 
   async limpiarPorPatron(patron: string): Promise<void> {
-    // TODO: Implementar limpieza por patrón de clave
-    logger.debug(`Limpiar caché por patrón: ${patron}`);
+    const regex = new RegExp(`^${patron.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
+    let eliminadas = 0;
+
+    for (const clave of this.almacen.keys()) {
+      if (regex.test(clave)) {
+        this.almacen.delete(clave);
+        eliminadas += 1;
+      }
+    }
+
+    logger.debug(`Caché limpiada por patrón: ${patron}`, { eliminadas });
   }
 }
 

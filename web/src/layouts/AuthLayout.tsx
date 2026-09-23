@@ -1,30 +1,50 @@
 /**
  * @archivo AuthLayout.tsx
  * @descripcion Layout para páginas de autenticación de OfiAI.
- * Diseño de pantalla dividida: formulario izquierda, imagen/branding derecha.
+ * Presenta formularios de acceso junto a una vista operacional del producto.
  * @modulo Layouts
  */
 import { ReactNode } from 'react';
+import loginBackground from '../assets/login-handshake.png';
 
-export const AuthLayout = ({ children }: { children: ReactNode }) => {
+/** Opciones del layout; la fotografia se limita a la pantalla de login. */
+interface AuthLayoutProps {
+  children: ReactNode;
+  withBackground?: boolean;
+}
+
+/**
+ * Envuelve formularios de autenticación con una composición responsive.
+ */
+export const AuthLayout = ({ children, withBackground = false }: AuthLayoutProps) => {
+  if (withBackground) {
+    return (
+      <main className="ofi-login">
+        <img className="ofi-login-image" src={loginBackground} alt="" aria-hidden="true" fetchPriority="high" />
+        <div className="ofi-login-veil" aria-hidden="true" />
+        <div className="ofi-login-container">
+          <div className="ofi-login-form">{children}</div>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex">
-      {/* Panel izquierdo: Formulario */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+    <div className="min-h-screen grid bg-surface-secondary lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,1fr)]">
+      <div className="flex items-center justify-center bg-white p-6 sm:p-8">
         <div className="w-full max-w-md">
           {children}
         </div>
       </div>
-      {/* Panel derecho: Branding OfiAI */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-brand-600 to-brand-900 items-center justify-center p-12">
-        <div className="text-white text-center">
-          <div className="text-5xl font-extrabold mb-4">OfiAI</div>
-          <p className="text-brand-200 text-lg max-w-sm">
-            La plataforma de IA para conectar empresas con los mejores profesionales de oficios en LATAM
+
+      <div className="hidden border-l border-border bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
+        <div>
+          <div className="text-3xl font-extrabold">OfiAI</div>
+          <p className="mt-4 max-w-md text-sm leading-6 text-slate-300">
+            Operación, contratación, pagos y asistencia IA para empresas y profesionales de oficios.
           </p>
-          {/* TODO: Agregar imagen/ilustración de la plataforma */}
-          {/* TODO: Agregar testimonios o estadísticas de clientes */}
         </div>
+
       </div>
     </div>
   );

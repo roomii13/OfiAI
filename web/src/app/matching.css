@@ -1,0 +1,91 @@
+/**
+ * @archivo matching.css
+ * @descripcion Recomendaciones adaptables: informacion densa, contrastes suaves y foco visible.
+ */
+.matching-page { max-width: 1160px; margin: 0 auto; color: #192c36; letter-spacing: 0; }
+.matching-page h1 { font-size: 28px; line-height: 1.2; font-weight: 750; overflow-wrap: anywhere; }
+.matching-page h2 { font-size: 19px; font-weight: 700; }
+.matching-page h3 { font-size: 18px; font-weight: 700; }
+.matching-back,.matching-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; color: #39606c; }
+.matching-back { margin-bottom: 24px; width: fit-content; }
+.matching-eyebrow { margin-bottom: 10px; color: #326968; }
+.matching-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+.matching-header p { margin-top: 9px; color: #566773; font-size: 14px; }
+.matching-job { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 28px; background: #e9f4fa; border-block: 1px solid #cde3eb; padding: 24px; }
+.matching-label { font-size: 11px; color: #416b7b; font-weight: 700; }
+.matching-job h2 { margin: 6px 0; }
+.matching-job p,.matching-job dd { font-size: 13px; overflow-wrap: anywhere; }
+.matching-job dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; align-content: center; }
+.matching-job dt { font-size: 12px; color: #5a7280; margin-bottom: 7px; }
+.matching-job dd { font-weight: 650; }
+.matching-result-note { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 22px 0; color: #5a666c; font-size: 12px; }
+.matching-result-note span:first-child { display: flex; gap: 6px; color: #5e4381; align-items: center; }
+.matching-selected,.matching-error { display: flex; align-items: center; gap: 12px; padding: 16px; margin: 0 0 18px; background: #e9f7f1; border-left: 3px solid #268061; font-size: 14px; }
+.matching-selected p { font-size: 12px; margin-top: 3px; }
+.matching-error { background: #fff0f1; border-color: #c24a56; margin-top: 18px; justify-content: space-between; }
+.matching-warning { background: #fff8dc; padding: 12px; font-size: 13px; margin-bottom: 16px; }
+.matching-filters { border-block: 1px solid #dce5e8; padding: 14px 0; }
+.matching-filters summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.matching-filter-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px; margin-top: 18px; align-items: end; }
+.matching-filter-grid label { font-size: 12px; display: grid; gap: 7px; }
+.matching-filter-grid .matching-checkbox { display: flex; align-items: center; align-self: center; }
+.matching-filter-grid input[type=checkbox] { width: 17px; height: 17px; }
+.matching-list-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 24px 0 18px; }
+.matching-list-header label { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.matching-list-header label > span { flex-shrink: 0; }
+.matching-list-header select { width: auto; max-width: 205px; font-size: 13px; }
+.matching-list { display: grid; gap: 18px; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.matching-candidate { min-width: 0; background: #fff; border: 1px solid #d6e1e7; border-radius: 8px; padding: 22px; display: flex; flex-direction: column; }
+.matching-candidate.is-selected { border-color: #299477; box-shadow: inset 0 3px #299477; }
+.matching-candidate-top { display: flex; align-items: center; gap: 12px; }
+.matching-avatar { display: inline-flex; align-items: center; justify-content: center; background: #eee9f9; color: #67538a; width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%; object-fit: cover; font-size: 18px; font-weight: 700; }
+.matching-identity { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.matching-identity h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 16px; }
+.matching-identity p { font-size: 12px; color: #677684; margin-top: 4px; }
+.matching-score { width: 102px; flex: 0 0 102px; text-align: right; }
+.matching-score strong { display: block; font-size: 27px; color: #196b65; font-weight: 750; line-height: 1.1; }
+.matching-score span { font-size: 10px; color: #306d69; display: block; }
+.matching-score small { display: block; font-size: 9px; line-height: 1.4; margin-top: 3px; color: #697a80; }
+.matching-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 20px 0; font-size: 12px; color: #556b78; }
+.matching-facts li { display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.matching-facts svg,.matching-explanation svg { flex-shrink: 0; }
+.matching-explanation { border-top: 1px solid #e7ecef; padding-top: 16px; flex: 1; font-size: 12px; }
+.matching-explanation h4 { font-weight: 700; margin-bottom: 8px; }
+.matching-explanation p { color: #566673; line-height: 1.6; }
+.matching-explanation ul { display: grid; gap: 7px; margin-top: 10px; }
+.matching-explanation li { display: flex; gap: 6px; align-items: start; overflow-wrap: anywhere; }
+.matching-explanation svg { color: #368071; margin-top: 2px; }
+.matching-explanation details { margin-top: 14px; color: #72643c; }
+.matching-explanation summary { cursor: pointer; }
+.matching-candidate footer { border-top: 1px solid #e7ecef; padding-top: 16px; margin-top: 18px; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; }
+.matching-candidate footer > span { font-size: 12px; color: #466b63; }
+.matching-candidate footer small { display: block; color: #68737a; margin-top: 3px; }
+.matching-candidate footer > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.matching-candidate button { font-size: 12px; min-height: 40px; }
+.matching-loading,.matching-empty { padding: 38px 0; display: grid; gap: 16px; justify-items: center; text-align: center; }
+.matching-loading ol { text-align: left; display: grid; gap: 12px; font-size: 14px; }
+.matching-loading li { display: flex; align-items: center; gap: 10px; }
+.matching-loading svg { color: #3e827a; }
+.matching-loading p,.matching-empty p { color: #647080; font-size: 14px; }
+.matching-step { width: 18px; height: 18px; border: 1px solid #b8cbd3; border-radius: 50%; font-size: 10px; text-align: center; flex: 0 0 18px; }
+.matching-profile { border: 1px solid #d5dfe6; border-radius: 8px; padding: 24px; width: min(580px,calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; color: #243941; }
+.matching-profile::backdrop { background: rgb(25 42 47 / 45%); }
+.matching-profile header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.matching-profile h2 { font-size: 19px; font-weight: 700; }
+.matching-profile h3 { font-size: 22px; font-weight: 700; margin: 12px 0; }
+.matching-profile p { font-size: 14px; margin-bottom: 18px; overflow-wrap: anywhere; }
+.matching-profile dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 24px 0; }
+.matching-profile dt { font-size: 12px; color: #6d7e85; }
+.matching-profile dd { font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+.matching-page button { white-space: normal; }
+.matching-page :focus-visible,.matching-profile :focus-visible { outline: 2px solid #4c858d; outline-offset: 3px; }
+@media(max-width:1100px) { .matching-list { grid-template-columns: minmax(0,1fr); } .matching-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) {
+  .matching-page h1 { font-size: 23px; } .matching-job { grid-template-columns: minmax(0,1fr); padding: 18px; gap: 18px; }
+  .matching-candidate { padding: 16px; } .matching-candidate-top { gap: 8px; } .matching-avatar { width: 42px; height: 42px; flex-basis: 42px; font-size: 15px; }
+  .matching-score { width: 82px; flex-basis: 82px; } .matching-score strong { font-size: 24px; } .matching-score small { font-size: 8px; }
+  .matching-list-header { align-items: flex-start; flex-direction: column; } .matching-candidate footer > div { width: 100%; }
+  .matching-candidate footer button { flex: 1; justify-content: center; } .matching-profile { padding: 18px; }
+  .matching-job dl { grid-template-columns: minmax(0,1fr); } .matching-job dl > div { display: flex; justify-content: space-between; gap: 16px; } .matching-job dd { text-align: right; }
+}
+@media(prefers-reduced-motion:reduce) { .matching-page .animate-spin { animation: none; } }

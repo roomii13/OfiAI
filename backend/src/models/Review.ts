@@ -23,6 +23,14 @@ export interface Resena {
   // Análisis de sentimiento generado por IA
   sentimientoIA?: 'positivo' | 'neutro' | 'negativo';
   fechaCreacion: Date;
-  // TODO: Agregar sistema de respuesta a reseñas
-  // TODO: Agregar moderación automática con Gemini API
+  respuesta?: {
+    autorId: string;
+    comentario: string;
+    fecha: Date;
+  };
+  moderacionIA?: {
+    estado: 'aprobada' | 'requiere_revision' | 'rechazada';
+    razon?: string;
+    confianza: number;
+  };
 }

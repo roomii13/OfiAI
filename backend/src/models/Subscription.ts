@@ -4,8 +4,8 @@
  * Gestiona los planes de pago de empresas y profesionales en la plataforma.
  * @modulo Modelos
  */
-export type PlanSuscripcion = 'basico' | 'pro' | 'enterprise';
-export type EstadoSuscripcion = 'activa' | 'vencida' | 'cancelada' | 'trial';
+export type PlanSuscripcion = 'gratuito' | 'profesional' | 'empresa';
+export type EstadoSuscripcion = 'activa' | 'vencida' | 'cancelada' | 'trial' | 'pendiente_pago';
 
 export interface Suscripcion {
   id: string;
@@ -13,23 +13,20 @@ export interface Suscripcion {
   rolUsuario: 'empresa' | 'profesional';
   plan: PlanSuscripcion;
   estado: EstadoSuscripcion;
-  stripeCustomerId?: string;      // ID del cliente en Stripe
-  stripeSubscriptionId?: string;  // ID de la suscripción en Stripe
-  stripePriceId?: string;
+  mercadoPagoPreapprovalId?: string;
+  mercadoPagoPreferenceId?: string;
+  mercadoPagoPaymentId?: string;
   precioMensual: number;
   moneda: string;
   fechaInicio: Date;
   fechaVencimiento: Date;
   renovacionAutomatica: boolean;
-  // Límites del plan
   limitesActuales: {
-    trabajosPublicados?: number;   // Para empresas
-    propuestasEnviadas?: number;   // Para profesionales
-    consultasIA: number;           // Consultas a Gemini API por mes
-    perfilesVisibles: number;      // Perfiles accesibles en búsqueda
+    trabajosPublicados?: number;
+    propuestasEnviadas?: number;
+    consultasIA: number;
+    perfilesVisibles: number;
   };
   fechaCreacion: Date;
   fechaActualizacion: Date;
-  // TODO: Agregar historial de facturas
-  // TODO: Agregar cupones y descuentos
 }

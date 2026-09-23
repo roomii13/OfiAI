@@ -6,6 +6,7 @@
  */
 
 import { Router } from 'express';
+import { z } from 'zod';
 import { authController } from '../controllers/auth.controller';
 import { verificarAutenticacion } from '../middleware/auth.middleware';
 import { limitadorAuth } from '../middleware/rateLimit.middleware';
@@ -18,6 +19,11 @@ import {
 } from '../validators/auth.validator';
 
 const router = Router();
+
+/** PUT /auth/preferences actualiza unicamente canales permitidos. */
+router.put('/preferences', verificarAutenticacion, validarBody(z.object({
+  email: z.boolean(), whatsapp: z.boolean(), push: z.boolean(), in_app: z.boolean(),
+}).strict()), authController.updatePreferences);
 
 /**
  * POST /api/v1/auth/register/company

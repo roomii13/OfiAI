@@ -1,6 +1,12 @@
 /**
+ * @archivo domain/pricing/index.ts
  * @dominio Pricing
  * @descripcion Dominio de pricing en OfiAI.
- * TODO: Implementar entidades, value objects y casos de uso del dominio
  */
-export {};
+export type {
+  EntradaEstimacionPrecio,
+  ResultadoEstimacionPrecio,
+} from '../../ai/agents/pricing.agent';
+export { pricingAgent } from '../../ai/agents/pricing.agent';
+export type { PricingInputs, PricingEvidence, PricingEstimate, PricingView } from '../../models/pricing.model';
+export { calculatePricing } from '../../ai/tools/pricing.tool';

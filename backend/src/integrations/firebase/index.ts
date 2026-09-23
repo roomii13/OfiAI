@@ -1,8 +1,25 @@
 /**
- * @integracion Firebase
- * @descripcion Integración con Firebase Admin SDK para OfiAI.
- * Provee Auth, Firestore y Storage al resto del sistema.
- * TODO: Implementar inicialización de Firebase Admin SDK
- * TODO: Exportar instancias de Auth, Firestore y Storage
+ * @archivo index.ts
+ * @descripcion Exportaciones públicas de Firebase Admin SDK para OfiAI.
+ * Provee Auth, Firestore, Storage y utilidades de autenticación al resto del backend.
+ * @modulo Integrations
  */
-export {};
+
+export {
+  firebaseAdmin,
+  firebaseAdminApp,
+  firebaseAuth,
+  firebaseStorage,
+  firestore,
+} from './admin';
+
+export {
+  createFirebaseUser,
+  deleteFirebaseUser,
+  generatePasswordResetLink,
+  getFirebaseUser,
+  getFirebaseUserByEmail,
+  revokeUserRefreshTokens,
+  setCustomUserClaims,
+  verifyFirebaseToken,
+} from './auth';

@@ -33,67 +33,117 @@ service cloud.firestore {
     // ===== USUARIOS =====
     match /users/{usuarioId} {
       allow read: if esPropietario(usuarioId) || esAdmin();
-      allow create: if estaAutenticado() && esPropietario(usuarioId);
-      allow update: if esPropietario(usuarioId) || esAdmin();
+      allow create: if esAdmin()
+        || (
+          esPropietario(usuarioId)
+          && request.resource.data.rol in ['empresa', 'profesional']
+        );
+      allow update: if esAdmin()
+        || (
+          esPropietario(usuarioId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nombre',
+            'apellido',
+            'telefono',
+            'idioma',
+            'ultimoAcceso',
+            'fechaActualizacion'
+          ])
+        );
       allow delete: if esAdmin();
     }
 
     // ===== EMPRESAS =====
     match /companies/{empresaId} {
       allow read: if estaAutenticado();
-      allow create: if esEmpresa();
-      allow update: if esEmpresa() && esPropietario(resource.data.usuarioId) || esAdmin();
-      allow delete: if esAdmin();
+      allow create, update, delete: if esAdmin();
     }
 
     // ===== PROFESIONALES =====
     match /professionals/{profesionalId} {
       allow read: if estaAutenticado();
-      allow create: if esProfesional();
-      allow update: if esProfesional() && esPropietario(resource.data.usuarioId) || esAdmin();
-      allow delete: if esAdmin();
+      allow create, update, delete: if esAdmin();
     }
 
     // ===== TRABAJOS =====
     match /jobs/{trabajoId} {
-      allow read: if estaAutenticado();
-      allow create: if esEmpresa();
-      allow update: if esEmpresa() && esPropietario(resource.data.empresaId) || esAdmin();
-      allow delete: if esEmpresa() && esPropietario(resource.data.empresaId) || esAdmin();
+      allow read: if esAdmin()
+        || (esEmpresa() && get(/databases/$(database)/documents/companies/$(resource.data.empresaId)).data.usuarioId == request.auth.uid)
+        || (esProfesional() && (resource.data.estado == 'publicado'
+          || ('profesionalAsignadoId' in resource.data
+            && get(/databases/$(database)/documents/professionals/$(resource.data.profesionalAsignadoId)).data.usuarioId == request.auth.uid)));
+      allow create, update, delete: if esAdmin();
+    }
+
+    // Matching se consulta exclusivamente por la API con ownership; el SDK cliente no accede a leases ni resultados.
+    match /jobs/{trabajoId}/matching/{runId} {
+      allow read, write: if false;
+    }
+    match /jobs/{trabajoId}/matches/{professionalId} {
+      allow read, write: if false;
+    }
+
+    // Intake siempre pasa por API autenticada; ningun cliente escribe contexto ni confirma directamente.
+    // Pricing y presupuestos privados: exclusivamente API con ownership.
+    match /jobs/{jobId}/pricing/{documentId} { allow read, write: if false; }
+    match /jobs/{jobId}/pricing_quotes/{documentId} { allow read, write: if false; }
+    match /jobs/{jobId}/pricing_estimates/{documentId} { allow read, write: if false; }
+    match /jobs/{jobId}/pricing_audit/{documentId} { allow read, write: if false; }
+
+    match /ai_intake_sessions/{sessionId} {
+      allow read, write: if false;
     }
 
     // ===== PROPUESTAS =====
     match /proposals/{propuestaId} {
-      allow read: if esPropietario(resource.data.profesionalId) ||
-                     esPropietario(resource.data.empresaId) || esAdmin();
-      allow create: if esProfesional();
-      allow update: if esPropietario(resource.data.profesionalId) ||
-                       esPropietario(resource.data.empresaId) || esAdmin();
-      allow delete: if esAdmin();
+      allow read: if estaAutenticado();
+      allow create, update, delete: if esAdmin();
     }
 
     // ===== RESEÑAS =====
     match /reviews/{resenaId} {
       allow read: if estaAutenticado();
-      allow create: if estaAutenticado();
-      allow update: if esAdmin(); // Solo admins pueden moderar reseñas
-      allow delete: if esAdmin();
+      allow create, update, delete: if esAdmin();
     }
 
     // ===== SUSCRIPCIONES =====
     match /subscriptions/{suscripcionId} {
       allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
-      allow create: if esAdmin(); // Las suscripciones las crea el backend via webhook de Stripe
-      allow update: if esAdmin();
-      allow delete: if esAdmin();
+      allow create, update, delete: if esAdmin();
+    }
+
+    // ===== HISTORIAL DE SUSCRIPCIONES =====
+    match /subscription_history/{historialId} {
+      allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
+      allow create, update, delete: if esAdmin();
     }
 
     // ===== NOTIFICACIONES =====
     match /notifications/{notificacionId} {
       allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
-      allow create: if esAdmin(); // Las notificaciones las crea el backend
-      allow update: if esPropietario(resource.data.usuarioId); // Marcar como leída
+      allow create: if esAdmin();
+      allow update: if esAdmin()
+        || (
+          esPropietario(resource.data.usuarioId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'leida',
+            'fechaLeida'
+          ])
+        );
       allow delete: if esAdmin();
+    }
+
+    // ===== ANALYTICS =====
+    match /analytics_events/{eventoId} {
+      allow read, write: if esAdmin();
+    }
+
+    match /analytics_reports/{reporteId} {
+      allow read, write: if esAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

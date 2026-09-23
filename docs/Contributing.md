@@ -16,5 +16,19 @@
 - **Tests**: Cobertura mínima de 70% para nuevos archivos
 - **Documentación**: Actualizar docs/ si se cambia arquitectura
 
-## TODO: Agregar template de Pull Request
-## TODO: Agregar checklist de revisión de código
+## Pull Requests
+
+Cada PR debe incluir:
+
+- Resumen de cambios.
+- Módulos afectados.
+- Evidencia de build y tests.
+- Riesgos conocidos.
+- Variables nuevas, si aplica.
+
+## Checklist
+
+- TypeScript compila.
+- No hay secretos en commits.
+- No hay stubs vacíos.
+- La documentación relevante está actualizada.

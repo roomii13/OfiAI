@@ -4,11 +4,18 @@
  * Distribuye notificaciones a través de email (Resend), push, SMS y WhatsApp.
  * @modulo Workers
  */
-export const notificationsWorker = async (_notificacionId: string): Promise<void> => {
-  // TODO: Obtener notificación pendiente desde Firestore
-  // TODO: Verificar preferencias de canal del usuario
-  // TODO: Enviar por canal apropiado (email/push/SMS/WhatsApp)
-  // TODO: Marcar notificación como enviada
-  // TODO: Manejar reintentos en caso de error
-  throw new Error('notifications.worker.ts no implementado aún');
+import { notificationService } from '../services/notification.service';
+
+/**
+ * Ejecuta el envío de una notificación pendiente por ID.
+ */
+export const notificationsWorker = async (notificacionId: string): Promise<void> => {
+  await notificationService.enviarNotificacion(notificacionId);
+};
+
+/**
+ * Ejecuta el procesamiento batch de reintentos de notificación.
+ */
+export const notificationRetriesWorker = async (limite = 50): Promise<{ procesadas: number }> => {
+  return notificationService.procesarReintentos(limite);
 };

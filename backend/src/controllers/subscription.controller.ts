@@ -3,21 +3,170 @@
  * @descripcion Controlador de subscription para OfiAI.
  * @modulo Controllers
  */
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import { RequestAutenticada } from '../middleware/auth.middleware';
+import { ApiError } from '../middleware/error.middleware';
+import { subscriptionService } from '../services/subscription.service';
 
-export const crearSuscripcion = async (_req: Request, _res: Response, _next: NextFunction): Promise<void> => {
-  // TODO: Implementar crearSuscripcion
-};
+/**
+ * Controlador HTTP para suscripciones y pagos.
+ */
+class SubscriptionController {
+  /**
+   * Lista los planes comerciales disponibles.
+   */
+  listarPlanes = async (_req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.status(200).json({
+        exito: true,
+        mensaje: 'Planes de suscripción obtenidos correctamente.',
+        datos: subscriptionService.listarPlanes(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 
-export const cancelarSuscripcion = async (_req: Request, _res: Response, _next: NextFunction): Promise<void> => {
-  // TODO: Implementar cancelarSuscripcion
-};
+  /**
+   * Crea checkout o activa plan gratuito.
+   */
+  crearSuscripcion = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const contexto = this.obtenerContextoAutenticado(req);
+      const resultado = await subscriptionService.crearCheckout(contexto.usuarioId, contexto.rol, req.body);
 
-export const obtenerSuscripcion = async (_req: Request, _res: Response, _next: NextFunction): Promise<void> => {
-  // TODO: Implementar obtenerSuscripcion
-};
+      res.status(201).json({
+        exito: true,
+        mensaje: 'Proceso de suscripción iniciado correctamente.',
+        datos: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 
-export const webhookStripe = async (_req: Request, _res: Response, _next: NextFunction): Promise<void> => {
-  // TODO: Implementar webhookStripe
-};
+  /**
+   * Obtiene la suscripción vigente del usuario autenticado.
+   */
+  obtenerSuscripcion = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const contexto = this.obtenerContextoAutenticado(req);
+      const resultado = await subscriptionService.obtenerActual(contexto.usuarioId);
+
+      res.status(200).json({
+        exito: true,
+        mensaje: 'Suscripción actual obtenida correctamente.',
+        datos: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Obtiene historial de suscripciones y eventos.
+   */
+  obtenerHistorial = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const contexto = this.obtenerContextoAutenticado(req);
+      const resultado = await subscriptionService.obtenerHistorial(contexto.usuarioId);
+
+      res.status(200).json({
+        exito: true,
+        mensaje: 'Historial de suscripciones obtenido correctamente.',
+        datos: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Cancela una suscripción existente.
+   */
+  cancelarSuscripcion = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const contexto = this.obtenerContextoAutenticado(req);
+      const resultado = await subscriptionService.cancelarSuscripcion(
+        req.params.id!,
+        contexto.usuarioId,
+        contexto.rol,
+        req.body
+      );
+
+      res.status(200).json({
+        exito: true,
+        mensaje: 'Suscripción cancelada correctamente.',
+        datos: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Renueva una suscripción manualmente.
+   */
+  renovarSuscripcion = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const contexto = this.obtenerContextoAutenticado(req);
+      const resultado = await subscriptionService.renovarSuscripcion(
+        req.params.id!,
+        contexto.usuarioId,
+        contexto.rol
+      );
+
+      res.status(200).json({
+        exito: true,
+        mensaje: 'Suscripción renovada correctamente.',
+        datos: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Procesa webhooks de Mercado Pago.
+   */
+  webhookMercadoPago = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const firma = req.headers['x-signature'];
+      const requestId = req.headers['x-request-id'];
+      const resultado = await subscriptionService.procesarWebhookMercadoPago(
+        req.body,
+        Array.isArray(firma) ? firma[0] : firma,
+        Array.isArray(requestId) ? requestId[0] : requestId
+      );
+
+      res.status(200).json({
+        exito: true,
+        mensaje: 'Webhook procesado correctamente.',
+        datos: resultado,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Extrae usuario autenticado desde el request.
+   */
+  private obtenerContextoAutenticado(req: RequestAutenticada): { usuarioId: string; rol: NonNullable<RequestAutenticada['usuario']>['rol'] } {
+    const usuarioId = req.usuario?.uid;
+    const rol = req.usuario?.rol;
+
+    if (!usuarioId || !rol) {
+      throw new ApiError('Usuario no autenticado.', 401);
+    }
+
+    return { usuarioId, rol };
+  }
+}
+
+export const subscriptionController = new SubscriptionController();
+export const crearSuscripcion = subscriptionController.crearSuscripcion;
+export const cancelarSuscripcion = subscriptionController.cancelarSuscripcion;
+export const obtenerSuscripcion = subscriptionController.obtenerSuscripcion;
+export const webhookMercadoPago = subscriptionController.webhookMercadoPago;
 

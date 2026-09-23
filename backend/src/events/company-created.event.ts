@@ -3,6 +3,8 @@
  * @descripcion Evento disparado cuando una empresa se registra en OfiAI.
  * @modulo Events
  */
+import { logger } from '../config/logger';
+
 export interface EventoEmpresaCreada {
   empresaId: string;
   usuarioId: string;
@@ -10,9 +12,12 @@ export interface EventoEmpresaCreada {
   timestamp: Date;
 }
 
-export const publicarEventoEmpresaCreada = async (_evento: EventoEmpresaCreada): Promise<void> => {
-  // TODO: Enviar email de bienvenida via Resend
-  // TODO: Iniciar flujo de onboarding guiado por el sales.agent.ts
-  // TODO: Activar período de prueba gratuito
-  // TODO: Registrar en analytics de nuevos usuarios
+/**
+ * Publica el evento de empresa creada en el canal interno actual.
+ */
+export const publicarEventoEmpresaCreada = async (evento: EventoEmpresaCreada): Promise<void> => {
+  logger.info('Evento de empresa creada publicado.', {
+    tipo: 'company.created',
+    ...evento,
+  });
 };

@@ -24,4 +24,5 @@ export interface Usuario {
   fechaCreacion: Date;
   fechaActualizacion: Date;
   ultimoAcceso?: Date;
+  preferenciasNotificaciones?: { email: boolean; whatsapp: boolean; push: boolean; in_app: boolean };
 }
