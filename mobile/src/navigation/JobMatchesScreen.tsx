@@ -93,6 +93,7 @@ function Matches({ jobId }: { jobId: string }) {
       </View> : result && ['completed', 'fallback'].includes(result.status) ? <>
         <Text style={{ color: colores.textoSuave }}>{result.message}</Text>
         <Action label="Ver estimacion de precio" onPress={() => nav.navigate('JobPricing', { jobId })} />
+        <Action label="Coordinar trabajo" onPress={() => nav.navigate('JobCoordinator', { jobId })} />
         <Text style={{ color: colores.primario, fontSize: 12 }}>{result.semanticMatchingUsed ? 'Compatibilidad + analisis semantico' : 'Criterios de compatibilidad'} · {result.totalCandidates} compatibles</Text>
         {result.searchLimited && <Text style={{ color: colores.textoSuave }}>Busqueda limitada a {result.scannedCandidates} perfiles del catalogo.</Text>}
         {result.selectedProfessionalId && <View style={[styles.summary, { backgroundColor: modo === 'oscuro' ? colores.superficie : '#e7f6ee' }]}><Text style={[styles.subtitle, { color: colores.texto }]}>Seleccion guardada</Text><Text style={{ color: colores.texto }}>Todavia no se realizo una contratacion.</Text></View>}

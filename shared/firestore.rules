@@ -7,11 +7,14 @@ service cloud.firestore {
 
     // ===== FUNCIONES AUXILIARES =====
     function estaAutenticado() {
-      return request.auth != null;
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.activo == true;
     }
 
     function esRol(rol) {
-      return estaAutenticado() && request.auth.token.rol == rol;
+      return estaAutenticado()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == rol;
     }
 
     function esAdmin() {
@@ -33,11 +36,8 @@ service cloud.firestore {
     // ===== USUARIOS =====
     match /users/{usuarioId} {
       allow read: if esPropietario(usuarioId) || esAdmin();
-      allow create: if esAdmin()
-        || (
-          esPropietario(usuarioId)
-          && request.resource.data.rol in ['empresa', 'profesional']
-        );
+      // El registro ya se realiza mediante Auth API + Admin SDK, no escribiendo un rol desde el cliente.
+      allow create: if esAdmin();
       allow update: if esAdmin()
         || (
           esPropietario(usuarioId)
@@ -89,6 +89,13 @@ service cloud.firestore {
     match /jobs/{jobId}/pricing_quotes/{documentId} { allow read, write: if false; }
     match /jobs/{jobId}/pricing_estimates/{documentId} { allow read, write: if false; }
     match /jobs/{jobId}/pricing_audit/{documentId} { allow read, write: if false; }
+    // Acuerdos y auditoria se consultan solo mediante API, con identidad de ambos participantes.
+    match /jobs/{jobId}/coordinator/{documentId} { allow read, write: if false; }
+    match /jobs/{jobId}/coordinator_history/{documentId} { allow read, write: if false; }
+    match /jobs/{jobId}/coordinator_commands/{documentId} { allow read, write: if false; }
+    match /jobs/{jobId}/coordinator_offers/{documentId} { allow read, write: if false; }
+    match /coordination_workflows/{documentId} { allow read, write: if false; }
+    match /coordinator_outbox/{documentId} { allow read, write: if false; }
 
     match /ai_intake_sessions/{sessionId} {
       allow read, write: if false;
@@ -96,7 +103,9 @@ service cloud.firestore {
 
     // ===== PROPUESTAS =====
     match /proposals/{propuestaId} {
-      allow read: if estaAutenticado();
+      allow read: if esAdmin()
+        || (esEmpresa() && get(/databases/$(database)/documents/companies/$(resource.data.empresaId)).data.usuarioId == request.auth.uid)
+        || (esProfesional() && get(/databases/$(database)/documents/professionals/$(resource.data.profesionalId)).data.usuarioId == request.auth.uid);
       allow create, update, delete: if esAdmin();
     }
 
@@ -107,15 +116,31 @@ service cloud.firestore {
     }
 
     // ===== SUSCRIPCIONES =====
+    // CRM privado: consentimiento, etapas y mensajes solo se procesan por API.
+    match /sales_leads/{document=**} { allow read, write: if false; }
+    match /marketing_campaigns/{document=**} { allow read, write: if false; }
+    match /support_sessions/{document=**} { allow read, write: if false; }
+    match /support_tickets/{document=**} { allow read, write: if false; }
+    match /agent_runs/{document=**} { allow read, write: if false; }
+    match /agent_events/{document=**} { allow read, write: if false; }
+    match /ai_knowledge/{document=**} { allow read, write: if false; }
+    match /agent_audit/{document=**} { allow read, write: if false; }
+    match /ai_budgets/{document=**} { allow read, write: if false; }
+    match /ai_observations/{document=**} { allow read, write: if false; }
+    // Facturacion y cuotas solo se modifican desde el backend autenticado.
+    match /billing_accounts/{uid}/{document=**} { allow read, write: if false; }
+    match /billing_payments/{id} { allow read, write: if false; }
+    match /billing_revenue/{id} { allow read, write: if false; }
+    match /billing_tasks/{id} { allow read, write: if false; }
     match /subscriptions/{suscripcionId} {
       allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
-      allow create, update, delete: if esAdmin();
+      allow create, update, delete: if false;
     }
 
     // ===== HISTORIAL DE SUSCRIPCIONES =====
     match /subscription_history/{historialId} {
       allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
-      allow create, update, delete: if esAdmin();
+      allow create, update, delete: if false;
     }
 
     // ===== NOTIFICACIONES =====

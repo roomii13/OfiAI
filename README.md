@@ -4,12 +4,27 @@ OfiAI es una plataforma SaaS para conectar empresas con profesionales de oficios
 
 ## Estado Actual
 
-Pricing Agent conectado al flujo Matching, con referencias reales, estimaciones auditables, comparacion de presupuestos, fallback y pantallas web/Expo.
-Ver [informe tecnico de Pricing](docs/PricingAgent.md) para API, Firestore, archivos exactos, 191 tests y limites verificados.
-Coordinator y monetizacion ampliada tienen contratos preparados, no implementaciones completas. Las renovaciones actuales de Mercado Pago no se modificaron.
+Entrega del 27/09/2026: agentes comerciales, soporte, inteligencia, Orchestrator, memoria,
+gobierno IA y operaciones integrados con Firestore y pantallas web/Expo.
+Ver [informe de agentes y operaciones](docs/BusinessAgents.md) para alcance real,
+endpoints, archivos, variables y pendientes. La verificacion posterior esta en
+[QA y bloqueos de produccion](docs/QA-2026-09-27.md). No certifica produccion ni todas las integraciones externas.
 
-Fase 5: Matching Agent conectado a Jobs reales, Firestore, web y Expo. Incluye filtros deterministas, Gemini estructurado opcional, fallback, cache y seleccion previa a contratar.
-Ver [informe tecnico de Matching](docs/MatchingAgent.md) para endpoints, archivos exactos y pruebas. El proveedor Gemini devuelve 402 en la comprobacion actual; no se declara produccion validada.
+Pricing Agent conectado al flujo Matching, con referencias reales, estimaciones auditables, comparacion de presupuestos, fallback y pantallas web/Expo.
+Ver [informe tecnico de Pricing](docs/PricingAgent.md) para API, Firestore, archivos exactos y limites verificados.
+Coordinator incorpora workflow persistente bilateral, ofertas, agenda, finalizacion y auditoria.
+Ver [informe tecnico de Coordinator](docs/CoordinatorAgent.md) para alcance, pruebas y pendientes de produccion.
+Reputation completo sigue pendiente. La ampliacion comercial esta detallada en
+[Monetizacion](docs/Monetization.md), incluidos limites de tiendas nativas y facturacion.
+Esta entrega no modifica precios ni renovaciones mensuales de Mercado Pago.
+
+Fase 5: Matching Agent conectado a Jobs reales, Firestore, web y Expo. Incluye filtros deterministas,
+enriquecimiento estructurado opcional, fallback, cache y seleccion previa a contratar.
+Ver [informe tecnico de Matching](docs/MatchingAgent.md) para endpoints, archivos exactos y pruebas.
+Groq es ahora el proveedor principal; DeepSeek/Gemini quedan deshabilitados por defecto.
+GROQ_API_KEY ya esta configurada localmente y se verifico Intake con llamadas reales.
+Ver [configuracion, cuotas y limites de Groq](docs/Groq.md). Los fallos HTTP 402 de los
+proveedores anteriores corresponden a la verificacion historica del 26-09-2026.
 
 Backend, web y mobile ya tienen una base funcional compilable:
 
@@ -23,11 +38,11 @@ Backend, web y mobile ya tienen una base funcional compilable:
 | Capa | Tecnología |
 |---|---|
 | Backend | Node.js, Express, TypeScript, Firebase Admin, Firestore |
-| IA | Reglas propias, agentes internos, Gemini preparado |
+| IA | Reglas propias y Groq en backend; proveedores anteriores solo por opt-in |
 | Pagos | Mercado Pago |
 | Notificaciones | Resend, WhatsApp, push e internas |
 | Web | React, Vite, TailwindCSS |
-| Mobile | Expo, React Native, React Navigation |
+| Mobile | Expo 54, React Native 0.81.5, React Navigation 7 |
 | Tests | Jest, ts-jest |
 
 ## Comandos
@@ -57,7 +72,9 @@ Backend:
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
 - `FIREBASE_STORAGE_BUCKET`
-- `GEMINI_API_KEY`
+- `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `AI_LEGACY_FALLBACK_ENABLED=false`
 - `MERCADOPAGO_ACCESS_TOKEN`
 - `MERCADOPAGO_WEBHOOK_SECRET`
 - `MERCADOPAGO_NOTIFICATION_URL`
@@ -94,12 +111,22 @@ El proyecto Firebase configurado como base es `ofiai-2f357`. Las claves sensible
 - [Deployment.md](./Deployment.md)
 - [Roadmap.md](./Roadmap.md)
 - [BusinessModel.md](./BusinessModel.md)
+- [Monetizacion: precios, implementacion y pendientes](./docs/Monetization.md)
 - [PromptEngineering.md](./PromptEngineering.md)
 - [AIAgents.md](./AIAgents.md)
+- [Groq: activacion y limites](./docs/Groq.md)
+- [Agentes comerciales, operaciones y pendientes](./docs/BusinessAgents.md)
 
 ## Validación Local
 
-Últimas validaciones realizadas:
+Validacion de agentes y operaciones del 27/09/2026:
+
+- Backend: compilacion TypeScript correcta.
+- Web: build correcto, con advertencias de bundle/configuracion Vite.
+- Mobile: typecheck correcto.
+- Testing, emuladores y dispositivos aplazados expresamente; no hubo llamadas a proveedores ni despliegue.
+
+Validaciones de entregas anteriores (no cubren los nuevos cambios):
 
 - `backend`: `npm run build`, `npm test`
 - `web`: `npm run build`

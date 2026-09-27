@@ -3,14 +3,15 @@ import { createHash } from 'node:crypto';
 import { matchingJobFingerprint } from '../matching/matching';
 import { PRICING_POLICY } from '../../constants/pricing';
 import { PRICING_PROMPT_VERSION } from '../../ai/prompts/pricing.prompt';
-import { env } from '../../config/env';
+import { aiProviderCacheConfig, env } from '../../config/env';
 import type { Trabajo } from '../../models/Job';
 import type { PricingSnapshot, PricingEvidence } from '../../models/pricing.model';
 /** Incluye las referencias efectivas; cambios de tarifas y presupuestos invalidan el cache. */
 export function pricingFingerprint(job: Trabajo, snapshot: PricingSnapshot, evidence: PricingEvidence[]): string {
   return createHash('sha256').update(JSON.stringify({ job: matchingJobFingerprint(job), selection: job.matchingSelection ?? null,
     context: snapshot.context, quotes: snapshot.quotes, evidence: [...evidence].sort((a, b) => a.id.localeCompare(b.id)),
-    policy: PRICING_POLICY, prompt: PRICING_PROMPT_VERSION, model: env.GEMINI_PRICING_MODEL, enabled: env.GEMINI_PRICING_ENABLED })).digest('hex');
+    policy: PRICING_POLICY, prompt: PRICING_PROMPT_VERSION, model: env.GEMINI_PRICING_MODEL,
+    enabled: env.GEMINI_PRICING_ENABLED, providers: aiProviderCacheConfig() })).digest('hex');
 }
 /** Convierte Timestamp/Date/ISO sin aceptar fechas invalidas como actuales. */
 export function pricingDate(value: unknown): string | null {

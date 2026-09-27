@@ -23,14 +23,20 @@ export class PricingAgent {
     if (!inputs || !estimate.range) return estimate;
     try {
       if (!env.GEMINI_PRICING_ENABLED || !geminiClient.estaDisponible()) throw new GeminiIntakeError('unavailable');
+      const validIds = new Set(estimate.evidence.map((_e, i) => 'e' + i));
+      const valid = (value: unknown): boolean => {
+        const result = pricingSemanticSchema.safeParse(value);
+        if (!result.success) return false;
+        const ids = result.data.evidenceIds;
+        const texts = [result.data.summary, ...result.data.questions, ...result.data.cautions];
+        return new Set(ids).size === ids.length && ids.every(id => validIds.has(id))
+          && !texts.some(text => /\b(?:USD|ARS|EUR)\b|[$€]|\d+[.,]?\d*\s*%/i.test(text));
+      };
       const raw = await geminiClient.generarEstructurado(PRICING_SYSTEM_PROMPT, pricingPrompt(job, inputs, estimate),
-        PRICING_RESPONSE_SCHEMA, { model: env.GEMINI_PRICING_MODEL, timeoutMs: 20000 });
+        PRICING_RESPONSE_SCHEMA, { model: env.GEMINI_PRICING_MODEL, timeoutMs: 20000, validate: valid });
       const parsed = pricingSemanticSchema.safeParse(raw);
       if (!parsed.success) throw new GeminiIntakeError('invalid_response');
-      const validIds = new Set(estimate.evidence.map((_e, i) => 'e' + i));
-      if (new Set(parsed.data.evidenceIds).size !== parsed.data.evidenceIds.length || parsed.data.evidenceIds.some(id => !validIds.has(id))) throw new GeminiIntakeError('invalid_response');
-      const texts = [parsed.data.summary, ...parsed.data.questions, ...parsed.data.cautions];
-      if (texts.some(text => /\b(?:USD|ARS|EUR)\b|[$€]|\d+[.,]?\d*\s*%/i.test(text))) throw new GeminiIntakeError('invalid_response');
+      if (!valid(parsed.data)) throw new GeminiIntakeError('invalid_response');
       return { ...estimate, semanticUsed: true, analysis: matchingText(parsed.data.summary, 700),
         warnings: [...estimate.warnings, ...parsed.data.cautions.map(text => matchingText(text, 200))],
         assumptions: [...estimate.assumptions, ...parsed.data.questions.map(text => 'Por confirmar con IA: ' + matchingText(text, 200))] };

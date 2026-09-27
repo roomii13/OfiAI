@@ -16,6 +16,11 @@ import { Suscripcion } from '../models/Subscription';
 import { Empresa } from '../models/Company';
 import { analyticsWorker } from '../workers/analytics.worker';
 import { notificationRetriesWorker } from '../workers/notifications.worker';
+import { coordinatorRetriesWorker } from '../workers/coordinator.worker';
+import { billingReconciliationWorker } from '../workers/billing.worker';
+import { salesFollowUpWorker } from '../workers/sales.worker';
+import { orchestratorWorker } from '../workers/orchestrator.worker';
+import { knowledgeRepository } from '../repositories/knowledge.repository';
 import { notificationService } from '../services/notification.service';
 
 export type TareaProgramadaNombre =
@@ -76,6 +81,10 @@ class SchedulerService {
   async run(tarea: TareaProgramadaNombre): Promise<ResultadoTareaProgramada> {
     if (tarea === 'reintentos_notificaciones') {
       const resultado = await notificationRetriesWorker(100);
+      await coordinatorRetriesWorker();
+      await billingReconciliationWorker();
+      await salesFollowUpWorker();
+      await orchestratorWorker();
       return this.crearResultado(tarea, resultado.procesadas);
     }
 
@@ -91,6 +100,7 @@ class SchedulerService {
 
     if (tarea === 'limpieza_datos') {
       const procesados = await this.procesarLimpiezaDatos();
+      await knowledgeRepository.purgeExpired();
       return this.crearResultado(tarea, procesados);
     }
 

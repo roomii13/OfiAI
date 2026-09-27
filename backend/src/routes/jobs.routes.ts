@@ -5,6 +5,7 @@
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { pricingRoutes } from './pricing.routes';
+import { coordinatorRoutes } from './coordinator.routes';
 import { matchingController } from '../controllers/matching.controller';
 import { matchingCommandSchema, matchingSelectionSchema, matchingViewSchema } from '../validators/matching.validator';
 import { limitadorIA } from '../middleware/rateLimit.middleware';
@@ -16,6 +17,7 @@ import { validarBody, validarQuery } from '../middleware/validation.middleware';
 import { esquemaActualizarTrabajo, esquemaCrearTrabajo, esquemaFiltrosTrabajo } from '../validators/job.validator';
 
 const router = Router();
+router.use('/:id/coordinator', coordinatorRoutes);
 router.use('/:id/pricing', pricingRoutes);
 const matching = Router({ mergeParams: true });
 matching.use(verificarAutenticacion, requerirRol('empresa'));

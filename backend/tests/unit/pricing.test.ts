@@ -2,12 +2,24 @@
 import { calculatePricing, comparable, robustValues } from '../../src/ai/tools/pricing.tool';
 import { pricingAgent } from '../../src/ai/agents/pricing.agent';
 import { geminiClient, GeminiIntakeError } from '../../src/integrations/gemini/gemini.client';
-import { env } from '../../src/config/env';
+import { aiProviderCacheConfig, env } from '../../src/config/env';
+import { pricingFingerprint } from '../../src/domain/pricing/pricing';
 import { pricingInputsSchema, pricingQuoteSchema } from '../../src/validators/pricing.validator';
 import { matchingJob } from '../matching-fixtures';
 import { pricingInputs, pricingQuote, pricingEvidence } from '../pricing-fixtures';
 const job = matchingJob({ urgency: 'normal' });
-afterEach(() => jest.restoreAllMocks());
+const providerConfig = { GROQ_API_KEY: env.GROQ_API_KEY, GROQ_MODEL: env.GROQ_MODEL,
+  AI_LEGACY_FALLBACK_ENABLED: env.AI_LEGACY_FALLBACK_ENABLED };
+afterEach(() => { jest.restoreAllMocks(); Object.assign(env, providerConfig); });
+it.each(['activation', 'model', 'fallback'] as const)('actualiza huella al cambiar proveedor: %s', change => {
+  const snapshot = { context: { inputs: pricingInputs(), revision: 1, quoteCount: 0 }, quotes: [], run: null };
+  const first = pricingFingerprint(job, snapshot, []);
+  if (change === 'activation') env.GROQ_API_KEY = 'test-key-not-a-secret';
+  if (change === 'model') env.GROQ_MODEL = 'test-model-v2';
+  if (change === 'fallback') env.AI_LEGACY_FALLBACK_ENABLED = !env.AI_LEGACY_FALLBACK_ENABLED;
+  expect(pricingFingerprint(job, snapshot, [])).not.toBe(first);
+  expect(JSON.stringify(aiProviderCacheConfig())).not.toContain('test-key-not-a-secret');
+});
 it('no inventa un rango desde categoria, ubicacion o presupuesto deseado', () => {
   expect(calculatePricing(job, null, [], [], 'run')).toMatchObject({ range: null, confidence: 0, status: 'insufficient_data' });
   expect(pricingAgent.estimarPrecio({ categoria: 'electricidad', moneda: 'ARS' })).toMatchObject({ estado: 'informacion_insuficiente', minimo: null, maximo: null, sugerido: null, confianza: 0 });

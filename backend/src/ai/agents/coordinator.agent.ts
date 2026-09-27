@@ -5,6 +5,9 @@
  * @modulo AI Agents
  */
 
+import { coordinatorAdvice } from '../tools/coordinator.tool';
+import type { CoordinatorWorkflow, CoordinatorRole, CoordinatorAdvice } from '../../../../shared/coordinator';
+
 export interface PlanAgenteIA {
   objetivo: string;
   pasos: string[];
@@ -14,7 +17,11 @@ export interface PlanAgenteIA {
 /**
  * Agente que describe flujos de trabajo IA reutilizables.
  */
-class CoordinatorAgent {
+export class CoordinatorAgent {
+  /** Decide el siguiente paso sin inventar acuerdos ni depender de un proveedor externo. */
+  decide(workflow: CoordinatorWorkflow, role: CoordinatorRole): CoordinatorAdvice {
+    return coordinatorAdvice(workflow, role);
+  }
   /**
    * Construye un plan de ejecución IA según el objetivo solicitado.
    */

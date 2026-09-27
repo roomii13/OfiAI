@@ -12,6 +12,7 @@ import {
   Bell,
   Briefcase,
   Building2,
+  CalendarCheck,
   CreditCard,
   LayoutDashboard,
   LogOut,
@@ -40,12 +41,14 @@ interface NavigationItem {
 }
 
 const navigationItems: NavigationItem[] = [
+  { label: 'Operaciones', path: '/operations/support', icon: Sparkles, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Solicitud con IA', path: '/dashboard/company/ai-request', icon: Sparkles, roles: ['empresa'] },
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Notificaciones', path: '/notifications', icon: Bell, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Empresas', path: '/companies', icon: Building2, roles: ['empresa', 'admin'] },
   { label: 'Profesionales', path: '/professionals', icon: Users, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Trabajos', path: '/jobs', icon: Briefcase, roles: ['empresa', 'profesional', 'admin'] },
+  { label: 'Coordinacion', path: '/dashboard/coordination', icon: CalendarCheck, roles: ['empresa', 'profesional'] },
   { label: 'IA', path: '/ai', icon: Sparkles, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Suscripciones', path: '/subscriptions', icon: CreditCard, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['empresa', 'profesional', 'admin'] },

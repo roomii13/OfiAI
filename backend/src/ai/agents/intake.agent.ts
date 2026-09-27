@@ -23,6 +23,7 @@ class IntakeAgent {
   async conversar(session: IntakeSession, message: string): Promise<IntakeResult> {
     const raw = await geminiClient.generarEstructurado(
       intakeSystemPrompt(new Date().toISOString()), intakeConversation(session, message), intakeResponseJsonSchema,
+      { validate: value => intakeModelResponseSchema.safeParse(value).success },
     );
     const parsed = intakeModelResponseSchema.safeParse(raw);
     if (!parsed.success) throw new GeminiIntakeError('invalid_response');

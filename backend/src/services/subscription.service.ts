@@ -1,434 +1,295 @@
 /**
  * @archivo subscription.service.ts
- * @descripcion Servicio de negocio para suscripciones SaaS de OfiAI.
- * Implementa planes, checkout, renovaciones, cancelaciones, historial y webhooks con Mercado Pago.
- * @modulo Services
+ * @descripcion Catalogo, contratos mensuales y conciliacion de pagos sin confiar en el cliente.
  */
-
 import { firestore } from '../integrations/firebase/admin';
 import { COLECCIONES } from '../database/firestore/collections';
 import { ApiError } from '../middleware/error.middleware';
-import { Suscripcion, PlanSuscripcion, EstadoSuscripcion } from '../models/Subscription';
-import { HistorialSuscripcion, ResultadoCheckoutSuscripcion } from '../models/subscription.model';
-import { RolUsuario, Usuario } from '../models/User';
+import type { Suscripcion, PlanSuscripcion } from '../models/Subscription';
+import type { HistorialSuscripcion, ResultadoCheckoutSuscripcion } from '../models/subscription.model';
+import type { RolUsuario } from '../models/User';
+import type { BillingAudience, BillingOverview, CommercialPlan } from '../../../shared/billing';
 import { env } from '../config/env';
-import { PLANES_POR_ID, obtenerPlanSuscripcion, IdPlanSuscripcion } from '../constants/subscriptionPlans';
-import { DatosCancelarSuscripcion, DatosSuscribirse } from '../validators/subscription.validator';
+import { BILLING_CATALOG_VERSION, COMMERCIAL_PLANS } from '../constants/billing';
+import { amountMinor, calculateTransactionFee, hasPaidAccess, nextBillingMonth } from '../utils/billing';
+import type { DatosCancelarSuscripcion, DatosSuscribirse } from '../validators/subscription.validator';
 import { subscriptionRepository } from '../repositories/subscription.repository';
 import { userRepository } from '../repositories/user.repository';
 import {
-  cancelarPreapprovalMercadoPago,
-  crearPreapprovalMercadoPago,
-  mercadoPagoDisponible,
-  obtenerPagoMercadoPago,
-  obtenerPreapprovalMercadoPago,
-  validarFirmaMercadoPago,
-  WebhookMercadoPago,
+  cancelarPreapprovalMercadoPago, crearPreapprovalMercadoPago, mercadoPagoDisponible,
+  obtenerPagoMercadoPago, obtenerPreapprovalMercadoPago, validarFirmaMercadoPago,
+  buscarPreapprovalMercadoPago, actualizarImporteMercadoPago, obtenerFacturaMercadoPago, listarFacturasMercadoPago,
+  type WebhookMercadoPago, type FacturaMercadoPago,
 } from '../integrations/mercadopago';
-import { logger } from '../config/logger';
 
-type RolSuscriptor = Exclude<RolUsuario, 'admin'>;
+export type PlanDisponible = CommercialPlan;
+export interface ResultadoHistorialSuscripcion { suscripciones: Suscripcion[]; eventos: HistorialSuscripcion[] }
 
-export interface PlanDisponible {
-  id: PlanSuscripcion;
-  nombre: string;
-  precioMensual: number;
-  moneda: string;
-  limitesEmpresa: {
-    trabajosPublicados: number;
-    perfilesVisibles: number;
-    consultasIA: number;
-  };
-  limitesProfesional: {
-    propuestasEnviadas: number;
-    consultasIA: number;
-  };
-}
-
-export interface ResultadoHistorialSuscripcion {
-  suscripciones: Suscripcion[];
-  eventos: HistorialSuscripcion[];
-}
-
-/**
- * Servicio de suscripciones con Mercado Pago y fallback interno para plan gratuito.
- */
-class SubscriptionService {
-  /**
-   * Lista planes comerciales disponibles.
-   */
-  listarPlanes(): PlanDisponible[] {
-    return Object.values(PLANES_POR_ID).map((plan) => ({
-      id: plan.id,
-      nombre: plan.nombre,
-      precioMensual: plan.precioMensual,
-      moneda: env.MERCADOPAGO_CURRENCY,
-      limitesEmpresa: plan.limitesEmpresa,
-      limitesProfesional: plan.limitesProfesional,
-    }));
+/** Servicio comercial unico; Mercado Pago realiza el cobro automatico mensual. */
+export class SubscriptionService {
+  /** Precios de nuevos contratos; mantiene IDs y no modifica suscripciones anteriores. */
+  listarPlanes(audience?: BillingAudience): CommercialPlan[] {
+    return COMMERCIAL_PLANS.filter(plan => !audience || plan.audience === audience).map(base => {
+      const override = base.id === 'gratuito' ? undefined : env.BILLING_CATALOG_JSON[base.id];
+      const priceUsd = override?.priceUsd ?? base.priceUsd; const limits = override?.limits ?? base.limits;
+      const localPrice = priceUsd === 0 ? 0 : env.MERCADOPAGO_CURRENCY === 'ARS' && env.BILLING_USD_TO_ARS
+        ? amountMinor(priceUsd * env.BILLING_USD_TO_ARS) / 100 : null;
+      return { ...base, priceUsd, limits, precioMensual: localPrice, moneda: env.MERCADOPAGO_CURRENCY,
+        available: priceUsd === 0 || (localPrice !== null && mercadoPagoDisponible()
+          && Boolean(env.MERCADOPAGO_WEBHOOK_SECRET && env.MERCADOPAGO_NOTIFICATION_URL)),
+        limitesEmpresa: { trabajosPublicados: limits.trabajosPublicados, consultasIA: limits.consultasIA, perfilesVisibles: limits.perfilesVisibles },
+        limitesProfesional: { propuestasEnviadas: limits.propuestasEnviadas, consultasIA: limits.consultasIA } };
+    });
   }
 
-  /**
-   * Crea una suscripción y devuelve checkout de Mercado Pago cuando corresponde.
-   */
-  async crearCheckout(
-    usuarioId: string,
-    rol: RolUsuario,
-    datos: DatosSuscribirse
-  ): Promise<ResultadoCheckoutSuscripcion> {
-    if (rol === 'admin') {
-      throw new ApiError('Los administradores no requieren suscripción comercial.', 400);
-    }
-
-    const usuario = await this.obtenerUsuario(usuarioId);
-    const plan = obtenerPlanSuscripcion(datos.plan);
-    const suscripcion = await this.crearSuscripcionInicial(usuarioId, rol, datos.plan);
-
-    await subscriptionRepository.addHistory({
-      suscripcionId: suscripcion.id,
-      usuarioId,
-      evento: 'checkout_creado',
-      descripcion: `Checkout Mercado Pago creado para plan ${plan.nombre}.`,
-      metadata: {
-        plan: datos.plan,
-        precioMensual: plan.precioMensual,
-        moneda: env.MERCADOPAGO_CURRENCY,
-      },
+  /** Inicia o recupera el unico checkout pendiente del titular. */
+  async crearCheckout(uid: string, role: RolUsuario, data: DatosSuscribirse): Promise<ResultadoCheckoutSuscripcion> {
+    const plan = this.plan(data.plan, role);
+    return subscriptionRepository.withAccountLock(uid, async () => {
+      const current = await this.obtenerActual(uid);
+      let pending = await subscriptionRepository.pending(uid);
+      if (!pending && current?.estado === 'pendiente_pago') pending = current;
+      if (pending && pending.plan !== plan.id) throw new ApiError('Primero cancela o completa el checkout pendiente.', 409);
+      if (!pending && current?.plan === plan.id && (hasPaidAccess(current) || (plan.id === 'gratuito' && current.estado === 'activa'))) {
+        return { suscripcion: current, checkout: { proveedor: 'interno', requierePagoExterno: false, estado: 'no_requiere_pago' } };
+      }
+      if (!pending && current && (hasPaidAccess(current) || (current.mercadoPagoPreapprovalId && current.renovacionAutomatica))) {
+        throw new ApiError('Ya tienes un contrato. Cambia de plan desde tu suscripcion actual.', 409);
+      }
+      if (plan.id !== 'gratuito' && !plan.available) throw new ApiError('El cobro de este plan todavia no esta configurado.', 503);
+      const user = await userRepository.findById(uid);
+      if (!user) throw new ApiError('Usuario no encontrado para crear suscripcion.', 404);
+      const backUrl = this.returnUrl(data.successUrl);
+      if (!pending) { pending = this.initial(uid, role as BillingAudience, plan); await subscriptionRepository.createForAccount(pending); }
+      if (pending.plan === 'gratuito') return { suscripcion: pending,
+        checkout: { proveedor: 'interno', requierePagoExterno: false, estado: 'no_requiere_pago' } };
+      if (!pending.mercadoPagoPreapprovalId) {
+        const recovered = pending.checkoutAttempted ? await buscarPreapprovalMercadoPago(pending.id) : null;
+        if (pending.checkoutAttempted && !recovered) throw new ApiError('Estamos verificando el checkout anterior con Mercado Pago. No se creara otro cobro.', 409);
+        if (!recovered) await subscriptionRepository.update(pending.id, { checkoutAttempted: true });
+        const created = recovered ? { id: recovered.id, initPoint: recovered.init_point }
+          : await crearPreapprovalMercadoPago({ payerEmail: user.email, reason: 'OfiAI - ' + plan.nombre,
+            amount: pending.precioMensual, currency: pending.moneda, backUrl, notificationUrl: env.MERCADOPAGO_NOTIFICATION_URL,
+            usuarioId: uid, suscripcionId: pending.id, plan: pending.plan });
+        const url = this.checkoutUrl(created.initPoint ?? ('sandboxInitPoint' in created ? created.sandboxInitPoint : undefined));
+        await subscriptionRepository.update(pending.id, { mercadoPagoPreapprovalId: created.id, checkoutUrl: url });
+      }
+      const subscription = await this.obtenerSuscripcionPorId(pending.id);
+      return { suscripcion: subscription, checkout: { proveedor: 'mercado_pago', id: subscription.mercadoPagoPreapprovalId,
+        url: subscription.checkoutUrl, requierePagoExterno: true, estado: 'creado' } };
     });
-
-    if (plan.precioMensual === 0) {
-      await subscriptionRepository.update(suscripcion.id, { estado: 'activa' });
-
-      return {
-        suscripcion: await this.obtenerSuscripcionPorId(suscripcion.id),
-        checkout: {
-          proveedor: 'interno',
-          requierePagoExterno: false,
-          estado: 'no_requiere_pago',
-        },
-      };
-    }
-
-    if (!mercadoPagoDisponible()) {
-      return {
-        suscripcion,
-        checkout: {
-          proveedor: 'mercado_pago',
-          requierePagoExterno: true,
-          estado: 'configuracion_pendiente',
-        },
-      };
-    }
-
-    const preapproval = await crearPreapprovalMercadoPago({
-      payerEmail: usuario.email,
-      reason: `OfiAI - Plan ${plan.nombre}`,
-      amount: plan.precioMensual,
-      currency: env.MERCADOPAGO_CURRENCY,
-      backUrl: datos.successUrl ?? 'https://ofiai.com/subscriptions/success',
-      notificationUrl: env.MERCADOPAGO_NOTIFICATION_URL,
-      usuarioId,
-      suscripcionId: suscripcion.id,
-      plan: datos.plan,
-    });
-
-    await subscriptionRepository.update(suscripcion.id, {
-      estado: 'pendiente_pago',
-      mercadoPagoPreapprovalId: preapproval.id,
-    });
-
-    return {
-      suscripcion: await this.obtenerSuscripcionPorId(suscripcion.id),
-      checkout: {
-        proveedor: 'mercado_pago',
-        id: preapproval.id,
-        url: preapproval.initPoint ?? preapproval.sandboxInitPoint,
-        requierePagoExterno: true,
-        estado: 'creado',
-      },
-    };
   }
 
-  /**
-   * Obtiene la suscripción vigente del usuario.
-   */
-  async obtenerActual(usuarioId: string): Promise<Suscripcion | null> {
-    return subscriptionRepository.findCurrentByUserId(usuarioId);
+  /** Resuelve vencimiento sin depender del scheduler. */
+  async obtenerActual(uid: string): Promise<Suscripcion | null> {
+    const subscription = await subscriptionRepository.findCurrentByUserId(uid);
+    if (subscription && subscription.plan !== 'gratuito' && subscription.estado === 'activa'
+      && subscription.fechaVencimiento <= new Date()) return { ...subscription, estado: 'vencida' };
+    return subscription;
   }
 
-  /**
-   * Obtiene historial de suscripciones y eventos operativos.
-   */
-  async obtenerHistorial(usuarioId: string): Promise<ResultadoHistorialSuscripcion> {
+  /** Historial operativo del titular. */
+  async obtenerHistorial(uid: string): Promise<ResultadoHistorialSuscripcion> {
     const [suscripciones, eventos] = await Promise.all([
-      subscriptionRepository.findHistoryByUserId(usuarioId),
-      subscriptionRepository.findOperationalHistoryByUserId(usuarioId),
-    ]);
-
+      subscriptionRepository.findHistoryByUserId(uid), subscriptionRepository.findOperationalHistoryByUserId(uid) ]);
     return { suscripciones, eventos };
   }
 
-  /**
-   * Cancela una suscripción respetando propietario o administrador.
-   */
-  async cancelarSuscripcion(
-    suscripcionId: string,
-    usuarioId: string,
-    rol: RolUsuario,
-    datos: DatosCancelarSuscripcion
-  ): Promise<Suscripcion> {
-    const suscripcion = await this.obtenerSuscripcionPorId(suscripcionId);
-    this.validarPropietario(suscripcion, usuarioId, rol);
-
-    if (suscripcion.mercadoPagoPreapprovalId && mercadoPagoDisponible()) {
-      await cancelarPreapprovalMercadoPago(suscripcion.mercadoPagoPreapprovalId);
-    }
-
-    const estado: EstadoSuscripcion = datos.cancelarAlFinalDelPeriodo ? suscripcion.estado : 'cancelada';
-    await subscriptionRepository.update(suscripcionId, {
-      estado,
-      renovacionAutomatica: false,
-    });
-    await subscriptionRepository.addHistory({
-      suscripcionId,
-      usuarioId: suscripcion.usuarioId,
-      evento: 'suscripcion_cancelada',
-      descripcion: datos.motivo ?? 'Cancelación solicitada por el usuario.',
-      metadata: {
-        cancelarAlFinalDelPeriodo: datos.cancelarAlFinalDelPeriodo,
-        proveedor: 'mercado_pago',
-      },
-    });
-
-    return this.obtenerSuscripcionPorId(suscripcionId);
+  /** Estado financiero y permisos efectivos, sin anunciar compras nativas aun no integradas. */
+  async overview(uid: string, role: RolUsuario): Promise<BillingOverview> {
+    if (role === 'admin') throw new ApiError('Usa el resumen de ingresos de administracion.', 403);
+    const [entitlements, payments] = await Promise.all([
+      subscriptionRepository.entitlements(uid, role), subscriptionRepository.payments(uid) ]);
+    const products = env.BILLING_STORE_PRODUCTS_JSON.filter(product => product.audience === role &&
+      COMMERCIAL_PLANS.some(plan => plan.audience === role && plan.id === product.plan));
+    const pending = await subscriptionRepository.pending(uid);
+    return { pendingCheckout: pending ? { id: pending.id, plan: pending.plan } : null,
+      entitlements, payments, stores: { products, purchasesEnabled: false },
+      transactionFee: { configured: env.BILLING_TRANSACTION_FEE_BPS !== undefined,
+        basisPoints: env.BILLING_TRANSACTION_FEE_BPS ?? null, collectionEnabled: false } };
   }
 
-  /**
-   * Renueva manualmente una suscripción extendiendo el vencimiento un mes.
-   */
-  async renovarSuscripcion(suscripcionId: string, usuarioId: string, rol: RolUsuario): Promise<Suscripcion> {
-    const suscripcion = await this.obtenerSuscripcionPorId(suscripcionId);
-    this.validarPropietario(suscripcion, usuarioId, rol);
-    const fechaBase = suscripcion.fechaVencimiento > new Date() ? suscripcion.fechaVencimiento : new Date();
-    const fechaVencimiento = new Date(fechaBase);
-    fechaVencimiento.setMonth(fechaVencimiento.getMonth() + 1);
-
-    await subscriptionRepository.update(suscripcionId, {
-      estado: 'activa',
-      fechaVencimiento,
-      renovacionAutomatica: true,
-    });
-    await subscriptionRepository.addHistory({
-      suscripcionId,
-      usuarioId: suscripcion.usuarioId,
-      evento: 'suscripcion_renovada',
-      descripcion: 'Suscripción renovada correctamente.',
-      metadata: { fechaVencimiento: fechaVencimiento.toISOString() },
-    });
-
-    return this.obtenerSuscripcionPorId(suscripcionId);
+  /** Comision indicativa: no debita ni contabiliza ingresos ficticios. */
+  feePreview(grossMinor: number): { feeMinor: number; collectionEnabled: false } {
+    if (env.BILLING_TRANSACTION_FEE_BPS === undefined) throw new ApiError('La comision comercial aun no fue configurada.', 503);
+    return { feeMinor: calculateTransactionFee(grossMinor, env.BILLING_TRANSACTION_FEE_BPS), collectionEnabled: false };
   }
 
-  /**
-   * Procesa webhooks de Mercado Pago y sincroniza estados internos.
-   */
-  async procesarWebhookMercadoPago(
-    payload: WebhookMercadoPago,
-    firma?: string,
-    requestId?: string
-  ): Promise<{ recibido: true; tipo: string }> {
-    const tipo = payload.type ?? payload.action ?? 'unknown';
-    const dataId = payload.data?.id ?? (payload.id ? String(payload.id) : undefined);
-
-    if (!validarFirmaMercadoPago(firma, requestId, dataId)) {
-      throw new ApiError('Firma inválida de Mercado Pago.', 401);
-    }
-
-    if (!dataId) {
-      logger.warn('Webhook Mercado Pago sin data.id.');
-      return { recibido: true, tipo };
-    }
-
-    if (tipo.includes('preapproval')) {
-      await this.sincronizarPreapproval(dataId);
-    } else if (tipo.includes('payment') || tipo.includes('authorized_payment')) {
-      await this.sincronizarPago(dataId);
-    } else {
-      logger.info(`Webhook Mercado Pago recibido sin acción específica: ${tipo}`);
-    }
-
-    return { recibido: true, tipo };
+  /** Cancela debitos futuros, conservando por defecto el periodo pagado. */
+  async cancelarSuscripcion(id: string, uid: string, role: RolUsuario, data: DatosCancelarSuscripcion): Promise<Suscripcion> {
+    const owned = await this.obtenerSuscripcionPorId(id); this.validarPropietario(owned, uid, role);
+    return subscriptionRepository.withAccountLock(owned.usuarioId, () => this.cancel(owned, data));
   }
 
-  /**
-   * Crea una suscripción interna inicial con límites del plan.
-   */
-  private async crearSuscripcionInicial(usuarioId: string, rol: RolSuscriptor, planId: IdPlanSuscripcion): Promise<Suscripcion> {
-    const fechaActual = new Date();
-    const fechaVencimiento = new Date(fechaActual);
-    fechaVencimiento.setMonth(fechaVencimiento.getMonth() + 1);
-    const plan = obtenerPlanSuscripcion(planId);
-    const limitesActuales = rol === 'empresa'
-      ? {
-        trabajosPublicados: plan.limitesEmpresa.trabajosPublicados,
-        consultasIA: plan.limitesEmpresa.consultasIA,
-        perfilesVisibles: plan.limitesEmpresa.perfilesVisibles,
+  /** Cancelacion idempotente dentro del bloqueo comercial. */
+  private async cancel(owned: Suscripcion, data: DatosCancelarSuscripcion): Promise<Suscripcion> {
+    const subscription = await this.obtenerSuscripcionPorId(owned.id);
+    if (subscription.cancelAtPeriodEnd || subscription.estado === 'cancelada') return subscription;
+    let providerId = subscription.mercadoPagoPreapprovalId;
+    if (!providerId && subscription.checkoutAttempted) {
+      const recovered = await buscarPreapprovalMercadoPago(subscription.id);
+      if (!recovered) throw new ApiError('El checkout sigue en conciliacion. No se puede confirmar la cancelacion aun.', 409);
+      providerId = recovered.id;
+    }
+    if (providerId) {
+      if (!mercadoPagoDisponible()) throw new ApiError('Mercado Pago no esta disponible para confirmar la cancelacion.', 503);
+      const provider = await obtenerPreapprovalMercadoPago(providerId);
+      if (provider.status !== 'cancelled') await cancelarPreapprovalMercadoPago(providerId);
+    }
+    await subscriptionRepository.update(subscription.id, { renovacionAutomatica: false,
+      cancelAtPeriodEnd: data.cancelarAlFinalDelPeriodo,
+      estado: data.cancelarAlFinalDelPeriodo && hasPaidAccess(subscription) ? 'activa' : 'cancelada',
+      ...(providerId ? { mercadoPagoPreapprovalId: providerId, providerStatus: 'cancelled' } : {}) });
+    await subscriptionRepository.clearPending(subscription.usuarioId, subscription.id);
+    await this.event(subscription, 'cancelacion_solicitada', data.cancelarAlFinalDelPeriodo
+      ? 'Renovacion desactivada. Se conserva el periodo pagado.' : 'Suscripcion cancelada. No se solicito un reembolso.');
+    return this.obtenerSuscripcionPorId(subscription.id);
+  }
+
+  /** Upgrade o downgrade al siguiente ciclo, sin prorrateo ni crear otro contrato. */
+  async cambiarPlan(id: string, uid: string, role: RolUsuario, planId: PlanSuscripcion): Promise<Suscripcion> {
+    const owned = await this.obtenerSuscripcionPorId(id); this.validarPropietario(owned, uid, role);
+    const plan = this.plan(planId, owned.rolUsuario);
+    return subscriptionRepository.withAccountLock(owned.usuarioId, async () => {
+      const current = await this.obtenerSuscripcionPorId(id);
+      if (plan.id === 'gratuito') return this.cancel(current, { cancelarAlFinalDelPeriodo: true });
+      if (!plan.available || plan.precioMensual === null) throw new ApiError('El cobro del plan no esta configurado.', 503);
+      if (current.moneda !== plan.moneda) throw new ApiError('El cambio de moneda requiere una revision del contrato.', 409);
+      if (!current.mercadoPagoPreapprovalId || !current.renovacionAutomatica || !hasPaidAccess(current)) {
+        throw new ApiError('Necesitas un contrato pago vigente con renovacion activa para cambiar de plan.', 409);
       }
-      : {
-        propuestasEnviadas: plan.limitesProfesional.propuestasEnviadas,
-        consultasIA: plan.limitesProfesional.consultasIA,
-        perfilesVisibles: plan.limitesEmpresa.perfilesVisibles,
-      };
-
-    const suscripcion: Suscripcion = {
-      id: firestore.collection(COLECCIONES.SUSCRIPCIONES).doc().id,
-      usuarioId,
-      rolUsuario: rol,
-      plan: plan.id,
-      estado: plan.precioMensual === 0 ? 'activa' : 'pendiente_pago',
-      precioMensual: plan.precioMensual,
-      moneda: env.MERCADOPAGO_CURRENCY,
-      fechaInicio: fechaActual,
-      fechaVencimiento,
-      renovacionAutomatica: plan.precioMensual > 0,
-      limitesActuales,
-      fechaCreacion: fechaActual,
-      fechaActualizacion: fechaActual,
-    };
-
-    return subscriptionRepository.create(suscripcion);
+      if (current.pendingPlan && current.pendingPlan.plan !== plan.id) throw new ApiError('Ya hay un cambio de plan pendiente.', 409);
+      if (current.plan === plan.id && !current.pendingPlan) return current;
+      const pending = current.pendingPlan ?? { plan: plan.id, precioMensual: plan.precioMensual,
+        priceUsd: plan.priceUsd, limits: plan.limits, effectiveAt: current.fechaVencimiento.toISOString() };
+      await subscriptionRepository.update(id, { pendingPlan: pending });
+      await actualizarImporteMercadoPago(current.mercadoPagoPreapprovalId, pending.precioMensual, current.moneda);
+      await this.event(current, 'cambio_plan_programado', 'Cambio a ' + plan.nombre + ' desde el siguiente periodo confirmado.');
+      return this.obtenerSuscripcionPorId(id);
+    });
   }
 
-  /**
-   * Obtiene una suscripción o lanza 404.
-   */
+  /** Concilia renovaciones automaticas; pulsar este endpoint no extiende periodos por si solo. */
+  async renovarSuscripcion(id: string, uid: string, role: RolUsuario, maxInvoices = 50): Promise<Suscripcion> {
+    let subscription = await this.obtenerSuscripcionPorId(id); this.validarPropietario(subscription, uid, role);
+    if (!subscription.mercadoPagoPreapprovalId && subscription.checkoutAttempted) {
+      const recovered = await buscarPreapprovalMercadoPago(subscription.id);
+      if (recovered) {
+        await subscriptionRepository.update(id, { mercadoPagoPreapprovalId: recovered.id,
+          ...(recovered.init_point ? { checkoutUrl: this.checkoutUrl(recovered.init_point) } : {}) });
+        subscription = await this.obtenerSuscripcionPorId(id);
+      }
+    }
+    if (!subscription.mercadoPagoPreapprovalId) return subscription;
+    await this.sincronizarPreapproval(subscription.mercadoPagoPreapprovalId);
+    const invoices = await listarFacturasMercadoPago(subscription.mercadoPagoPreapprovalId);
+    for (const invoice of invoices.sort((a, b) => b.debit_date.localeCompare(a.debit_date)).slice(0, maxInvoices)) await this.invoice(invoice);
+    return this.obtenerSuscripcionPorId(id);
+  }
+
+  /** Verifica HMAC sobre data.id de la URL y consulta al proveedor antes de conceder acceso. */
+  async procesarWebhookMercadoPago(payload: WebhookMercadoPago, signature?: string, requestId?: string,
+    queryId?: string): Promise<{ recibido: true; tipo: string }> {
+    const id = queryId ?? payload.data?.id;
+    if (!id || !/^[a-zA-Z0-9_-]{1,160}$/.test(id) || (payload.data?.id && String(payload.data.id).toLowerCase() !== id.toLowerCase())
+      || !validarFirmaMercadoPago(signature, requestId, id)) throw new ApiError('Firma invalida de Mercado Pago.', 401);
+    const type = payload.type ?? '';
+    if (type === 'subscription_preapproval') await this.sincronizarPreapproval(id);
+    else if (type === 'subscription_authorized_payment') await this.invoice(await obtenerFacturaMercadoPago(id));
+    else if (type === 'payment') {
+      const existing = await subscriptionRepository.payment(id);
+      if (existing) await this.invoice(await obtenerFacturaMercadoPago(existing.invoiceId));
+    }
+    return { recibido: true, tipo: type };
+  }
+
+  /** Valida identidad, factura e importe del pago recurrente. */
+  private async invoice(invoice: FacturaMercadoPago): Promise<void> {
+    if (!invoice.payment) return;
+    const subscription = await subscriptionRepository.findByMercadoPagoPreapprovalId(invoice.preapproval_id);
+    if (!subscription) return;
+    const payment = await obtenerPagoMercadoPago(String(invoice.payment.id));
+    if (!['approved', 'refunded', 'charged_back'].includes(payment.status)) return;
+    if (String(payment.id) !== String(invoice.payment.id) || payment.currency_id !== invoice.currency_id
+      || amountMinor(payment.transaction_amount) !== amountMinor(invoice.transaction_amount)
+      || (payment.external_reference && payment.external_reference !== subscription.id)
+      || (env.NODE_ENV === 'production' && payment.live_mode !== true) || !payment.date_approved) {
+      throw new ApiError('El pago no coincide con la factura recurrente.', 409);
+    }
+    await subscriptionRepository.applyPayment(subscription.id, { id: String(payment.id), invoiceId: invoice.id,
+      amount: payment.transaction_amount, refunded: payment.status === 'refunded' ? payment.transaction_amount : payment.transaction_amount_refunded ?? 0,
+      currency: payment.currency_id, status: payment.status as 'approved' | 'refunded' | 'charged_back',
+      paidAt: payment.date_approved, periodStart: invoice.debit_date });
+  }
+
+  /** Una autorizacion no es un pago; solo modifica estado de renovacion. */
+  private async sincronizarPreapproval(id: string): Promise<void> {
+    const provider = await obtenerPreapprovalMercadoPago(id);
+    let subscription = await subscriptionRepository.findByMercadoPagoPreapprovalId(id);
+    if (!subscription && provider.external_reference) subscription = await subscriptionRepository.findById(provider.external_reference);
+    if (!subscription || provider.external_reference !== subscription.id
+      || (subscription.mercadoPagoPreapprovalId && subscription.mercadoPagoPreapprovalId !== id)) return;
+    const cancelled = provider.status === 'cancelled' || provider.status === 'paused';
+    await subscriptionRepository.update(subscription.id, { mercadoPagoPreapprovalId: id, providerStatus: provider.status,
+      renovacionAutomatica: provider.status === 'authorized' && !subscription.cancelAtPeriodEnd,
+      ...(cancelled ? { ...(provider.status === 'cancelled' ? { cancelAtPeriodEnd: true } : {}),
+        estado: hasPaidAccess(subscription) ? 'activa' : 'cancelada' } : {}) });
+    if (cancelled) await subscriptionRepository.clearPending(subscription.usuarioId, subscription.id);
+  }
+
+  /** Captura condiciones economicas inmutables del nuevo contrato. */
+  private initial(uid: string, role: BillingAudience, plan: CommercialPlan): Suscripcion {
+    const now = new Date();
+    return { id: firestore.collection(COLECCIONES.SUSCRIPCIONES).doc().id, usuarioId: uid, rolUsuario: role,
+      plan: plan.id, estado: plan.priceUsd === 0 ? 'activa' : 'pendiente_pago', precioMensual: plan.precioMensual ?? 0,
+      moneda: plan.moneda, fechaInicio: now, fechaVencimiento: plan.priceUsd === 0 ? nextBillingMonth(now) : now,
+      renovacionAutomatica: plan.priceUsd > 0, limitesActuales: plan.limits, catalogVersion: BILLING_CATALOG_VERSION,
+      priceUsd: plan.priceUsd, fechaCreacion: now, fechaActualizacion: now };
+  }
+
+  /** Rechaza planes de otra audiencia. */
+  private plan(id: PlanSuscripcion, role: RolUsuario): CommercialPlan {
+    const plan = this.listarPlanes(role === 'admin' ? undefined : role).find(item => item.id === id && item.audience === role);
+    if (!plan) throw new ApiError('Ese plan no corresponde al tipo de cuenta.', 403);
+    return plan;
+  }
+
+  /** Restringe el retorno a origenes exactos autorizados por el servidor. */
+  private returnUrl(value?: string): string {
+    const url = new URL(value ?? env.CORS_ORIGINS[0] + '/subscriptions/success');
+    if (!env.CORS_ORIGINS.includes(url.origin) || url.username || url.password
+      || !['http:', 'https:'].includes(url.protocol) || (env.NODE_ENV === 'production' && url.protocol !== 'https:')) {
+      throw new ApiError('La URL de retorno no esta autorizada.', 400);
+    }
+    return url.toString();
+  }
+
+  /** Solo devuelve checkouts HTTPS de Mercado Pago. */
+  private checkoutUrl(value: unknown): string {
+    if (typeof value !== 'string') throw new ApiError('Mercado Pago no devolvio un checkout valido.', 502);
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password
+      || !/^(www\.)?mercadopago\.(com|com\.ar|com\.br|com\.mx|com\.co|com\.uy|com\.pe|cl)$/.test(url.hostname)) {
+      throw new ApiError('Mercado Pago no devolvio un checkout valido.', 502);
+    }
+    return value;
+  }
+
+  /** Obtiene un contrato o responde ausencia. */
   private async obtenerSuscripcionPorId(id: string): Promise<Suscripcion> {
-    const suscripcion = await subscriptionRepository.findById(id);
-
-    if (!suscripcion) {
-      throw new ApiError('Suscripción no encontrada.', 404);
-    }
-
-    return suscripcion;
+    const subscription = await subscriptionRepository.findById(id);
+    if (!subscription) throw new ApiError('Suscripcion no encontrada.', 404);
+    return subscription;
   }
 
-  /**
-   * Obtiene un usuario para checkout.
-   */
-  private async obtenerUsuario(usuarioId: string): Promise<Usuario> {
-    const usuario = await userRepository.findById(usuarioId);
-
-    if (!usuario) {
-      throw new ApiError('Usuario no encontrado para crear suscripción.', 404);
-    }
-
-    return usuario;
+  /** Oculta contratos ajenos. */
+  private validarPropietario(subscription: Suscripcion, uid: string, role: RolUsuario): void {
+    if (role !== 'admin' && subscription.usuarioId !== uid) throw new ApiError('Suscripcion no encontrada.', 404);
   }
 
-  /**
-   * Valida permisos sobre una suscripción.
-   */
-  private validarPropietario(suscripcion: Suscripcion, usuarioId: string, rol: RolUsuario): void {
-    if (rol !== 'admin' && suscripcion.usuarioId !== usuarioId) {
-      throw new ApiError('No tienes autorización para gestionar esta suscripción.', 403);
-    }
-  }
-
-  /**
-   * Sincroniza una preaprobación de Mercado Pago.
-   */
-  private async sincronizarPreapproval(preapprovalId: string): Promise<void> {
-    const preapproval = await obtenerPreapprovalMercadoPago(preapprovalId);
-    const suscripcion = await this.obtenerSuscripcionDesdeReferencia(preapproval.external_reference, preapproval.id);
-
-    if (!suscripcion) {
-      logger.warn(`Preapproval Mercado Pago sin suscripción local: ${preapprovalId}`);
-      return;
-    }
-
-    if (preapproval.status === 'authorized') {
-      await subscriptionRepository.update(suscripcion.id, {
-        estado: 'activa',
-        mercadoPagoPreapprovalId: preapproval.id,
-        renovacionAutomatica: true,
-      });
-      await this.registrarEventoProveedor(suscripcion, 'mercado_pago_autorizada', 'Mercado Pago autorizó la suscripción.', preapproval.id);
-      return;
-    }
-
-    if (['cancelled', 'paused'].includes(preapproval.status)) {
-      await subscriptionRepository.update(suscripcion.id, {
-        estado: 'cancelada',
-        mercadoPagoPreapprovalId: preapproval.id,
-        renovacionAutomatica: false,
-      });
-      await this.registrarEventoProveedor(suscripcion, 'mercado_pago_cancelada', 'Mercado Pago informó la cancelación o pausa.', preapproval.id);
-    }
-  }
-
-  /**
-   * Sincroniza un pago aprobado de Mercado Pago.
-   */
-  private async sincronizarPago(paymentId: string): Promise<void> {
-    const pago = await obtenerPagoMercadoPago(paymentId);
-    const suscripcionId = pago.external_reference ?? pago.metadata?.suscripcion_id ?? pago.metadata?.suscripcionId;
-
-    if (!suscripcionId || pago.status !== 'approved') {
-      return;
-    }
-
-    const suscripcion = await subscriptionRepository.findById(suscripcionId);
-
-    if (!suscripcion) {
-      logger.warn(`Pago Mercado Pago aprobado sin suscripción local: ${paymentId}`);
-      return;
-    }
-
-    await subscriptionRepository.update(suscripcion.id, {
-      estado: 'activa',
-      mercadoPagoPaymentId: String(pago.id),
-    });
-    await this.renovarSuscripcion(suscripcion.id, suscripcion.usuarioId, 'admin');
-    await this.registrarEventoProveedor(suscripcion, 'mercado_pago_pago_aprobado', 'Mercado Pago confirmó un pago aprobado.', String(pago.id));
-  }
-
-  /**
-   * Busca una suscripción usando referencia interna o preapproval ID.
-   */
-  private async obtenerSuscripcionDesdeReferencia(
-    suscripcionId: string | undefined,
-    preapprovalId: string
-  ): Promise<Suscripcion | null> {
-    if (suscripcionId) {
-      const porReferencia = await subscriptionRepository.findById(suscripcionId);
-      if (porReferencia) {
-        return porReferencia;
-      }
-    }
-
-    return subscriptionRepository.findByMercadoPagoPreapprovalId(preapprovalId);
-  }
-
-  /**
-   * Registra evento proveniente de Mercado Pago.
-   */
-  private async registrarEventoProveedor(
-    suscripcion: Suscripcion,
-    evento: string,
-    descripcion: string,
-    proveedorId: string
-  ): Promise<void> {
-    await subscriptionRepository.addHistory({
-      suscripcionId: suscripcion.id,
-      usuarioId: suscripcion.usuarioId,
-      evento,
-      descripcion,
-      metadata: {
-        proveedor: 'mercado_pago',
-        proveedorId,
-      },
-    });
+  /** Audita sin guardar tarjetas, tokens ni payloads externos. */
+  private async event(subscription: Suscripcion, evento: string, descripcion: string): Promise<void> {
+    await subscriptionRepository.addHistory({ suscripcionId: subscription.id, usuarioId: subscription.usuarioId, evento, descripcion });
   }
 }
-
 export const subscriptionService = new SubscriptionService();

@@ -7,6 +7,7 @@ import { Response, NextFunction } from 'express';
 import { RequestAutenticada } from '../middleware/auth.middleware';
 import { ApiError } from '../middleware/error.middleware';
 import { subscriptionService } from '../services/subscription.service';
+import { subscriptionRepository } from '../repositories/subscription.repository';
 
 /**
  * Controlador HTTP para suscripciones y pagos.
@@ -15,12 +16,12 @@ class SubscriptionController {
   /**
    * Lista los planes comerciales disponibles.
    */
-  listarPlanes = async (_req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+  listarPlanes = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
     try {
       res.status(200).json({
         exito: true,
         mensaje: 'Planes de suscripción obtenidos correctamente.',
-        datos: subscriptionService.listarPlanes(),
+        datos: subscriptionService.listarPlanes(req.query.audience as 'empresa' | 'profesional' | undefined),
       });
     } catch (error) {
       next(error);
@@ -105,7 +106,7 @@ class SubscriptionController {
   };
 
   /**
-   * Renueva una suscripción manualmente.
+   * Concilia la renovacion mensual automatica con el proveedor.
    */
   renovarSuscripcion = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -118,7 +119,7 @@ class SubscriptionController {
 
       res.status(200).json({
         exito: true,
-        mensaje: 'Suscripción renovada correctamente.',
+        mensaje: 'Estado de cobros recurrentes actualizado.',
         datos: resultado,
       });
     } catch (error) {
@@ -136,7 +137,8 @@ class SubscriptionController {
       const resultado = await subscriptionService.procesarWebhookMercadoPago(
         req.body,
         Array.isArray(firma) ? firma[0] : firma,
-        Array.isArray(requestId) ? requestId[0] : requestId
+        Array.isArray(requestId) ? requestId[0] : requestId,
+        typeof req.query['data.id'] === 'string' ? req.query['data.id'] : undefined
       );
 
       res.status(200).json({
@@ -147,6 +149,38 @@ class SubscriptionController {
     } catch (error) {
       next(error);
     }
+  };
+
+  /** Devuelve limites efectivos y ultimos pagos propios. */
+  overview = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const context = this.obtenerContextoAutenticado(req);
+      res.json({ exito: true, datos: await subscriptionService.overview(context.usuarioId, context.rol) });
+    } catch (error) { next(error); }
+  };
+
+  /** Programa un cambio sin modificar acceso pagado antes de su proximo cobro. */
+  cambiarPlan = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const context = this.obtenerContextoAutenticado(req);
+      res.json({ exito: true, datos: await subscriptionService.cambiarPlan(req.params.id!, context.usuarioId, context.rol, req.body.plan) });
+    } catch (error) { next(error); }
+  };
+
+  /** Permite solo a administracion consultar ingresos confirmados por moneda. */
+  revenue = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (this.obtenerContextoAutenticado(req).rol !== 'admin') throw new ApiError('Acceso exclusivo de administracion.', 403);
+      res.json({ exito: true, datos: await subscriptionRepository.revenue(String(req.query.month)) });
+    } catch (error) { next(error); }
+  };
+
+  /** Previsualiza una comision configurada sin ejecutar movimientos financieros. */
+  feePreview = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      this.obtenerContextoAutenticado(req);
+      res.json({ exito: true, datos: subscriptionService.feePreview(req.body.grossMinor) });
+    } catch (error) { next(error); }
   };
 
   /**

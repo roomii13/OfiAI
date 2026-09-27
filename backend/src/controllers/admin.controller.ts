@@ -8,13 +8,15 @@ import { Response, NextFunction } from 'express';
 import { firestore } from '../integrations/firebase/admin';
 import { COLECCIONES } from '../database/firestore/collections';
 import { RequestAutenticada } from '../middleware/auth.middleware';
+import { operationsService } from '../services/operations.service';
+import { ApiError } from '../middleware/error.middleware';
 
 /**
  * Cuenta documentos de una colección sin aplicar filtros.
  */
 async function contarColeccion(nombre: string): Promise<number> {
-  const snapshot = await firestore.collection(nombre).get();
-  return snapshot.size;
+  const snapshot = await firestore.collection(nombre).count().get();
+  return snapshot.data().count;
 }
 
 /**
@@ -53,6 +55,7 @@ export const listarUsuarios = async (_req: RequestAutenticada, res: Response, ne
   try {
     const snapshot = await firestore
       .collection(COLECCIONES.USUARIOS)
+      .select('nombre','apellido','email','rol','pais','activo','fechaCreacion')
       .orderBy('fechaCreacion', 'desc')
       .limit(50)
       .get();
@@ -87,10 +90,8 @@ export const suspenderUsuario = async (req: RequestAutenticada, res: Response, n
       return;
     }
 
-    await firestore.collection(COLECCIONES.USUARIOS).doc(usuarioId).update({
-      activo,
-      fechaActualizacion: new Date(),
-    });
+    if(!req.usuario) throw new ApiError('Inicia sesion para continuar.',401);
+    await operationsService.command(req.usuario,{targetId:usuarioId,action:activo?'restore_user':'suspend_user',reason:'Cambio desde administracion de usuarios.'});
 
     res.status(200).json({
       exito: true,

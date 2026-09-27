@@ -5,8 +5,9 @@
 import { GeminiClient } from '../../src/integrations/gemini/gemini.client';
 import { env } from '../../src/config/env';
 const original = env.GEMINI_API_KEY;
-beforeEach(() => { env.GEMINI_API_KEY = 'test-only-secret'; });
-afterEach(() => { env.GEMINI_API_KEY = original; jest.useRealTimers(); });
+const originalFallback = env.AI_LEGACY_FALLBACK_ENABLED;
+beforeEach(() => { env.GEMINI_API_KEY = 'test-only-secret'; env.AI_LEGACY_FALLBACK_ENABLED = true; });
+afterEach(() => { env.GEMINI_API_KEY = original; env.AI_LEGACY_FALLBACK_ENABLED = originalFallback; jest.useRealTimers(); });
 
 it('envia clave solo en headers y pide JSON con esquema', async () => {
   const transport = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>().mockResolvedValue(new Response(JSON.stringify({

@@ -12,10 +12,15 @@ import {
 } from '../controllers/admin.controller';
 import { verificarAutenticacion } from '../middleware/auth.middleware';
 import { requerirRol } from '../middleware/role.middleware';
+import { operationsController } from '../controllers/operations.controller';
+import { limitadorIA } from '../middleware/rateLimit.middleware';
 
 const router = Router();
 
 router.use(verificarAutenticacion, requerirRol('admin'));
+router.get('/operations',limitadorIA,operationsController.list);
+router.post('/operations/commands',limitadorIA,operationsController.command);
+router.get('/command-center',limitadorIA,operationsController.center);
 
 /**
  * GET /api/v1/admin/metrics

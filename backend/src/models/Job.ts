@@ -7,6 +7,9 @@
 export type EstadoTrabajo = 'borrador' | 'publicado' | 'en_revision' | 'en_progreso' | 'completado' | 'cancelado';
 
 export interface Trabajo {
+  /** Estado resumido del workflow; solo Coordinator puede modificarlo. */
+  coordinationId?: string;
+  coordinationState?: import('../../../shared/coordinator').CoordinatorState;
   matchingStatus?: import('../../../shared/matching').MatchingStatus;
   matchingSelection?: import('../../../shared/matching').MatchingSelection | null;
   source?: 'manual' | 'ai_intake';

@@ -7,6 +7,8 @@
 
 import crypto from 'crypto';
 import { env } from '../../config/env';
+import { z } from 'zod';
+import { ApiError } from '../../middleware/error.middleware';
 
 const MERCADO_PAGO_API_URL = 'https://api.mercadopago.com';
 
@@ -42,11 +44,18 @@ export interface PreapprovalMercadoPago {
   status: string;
   external_reference?: string;
   payer_email?: string;
+  init_point?: string;
+  auto_recurring?: { transaction_amount: number; currency_id: string };
 }
 
 export interface PagoMercadoPago {
   id: number;
   status: string;
+  transaction_amount: number;
+  transaction_amount_refunded?: number;
+  currency_id: string;
+  date_approved?: string | null;
+  live_mode?: boolean;
   external_reference?: string;
   metadata?: {
     suscripcion_id?: string;
@@ -56,6 +65,25 @@ export interface PagoMercadoPago {
     plan?: string;
   };
 }
+
+const providerId = z.union([z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/), z.number().int().nonnegative()]).transform(String);
+const preapprovalSchema = z.object({
+  id: providerId, status: z.string(), external_reference: z.string().optional(),
+  init_point: z.string().url().optional(), payer_email: z.string().optional(),
+  auto_recurring: z.object({ transaction_amount: z.number().nonnegative(), currency_id: z.string() }).optional(),
+});
+const paymentSchema = z.object({
+  id: z.number().int().positive(), status: z.string(), transaction_amount: z.number().nonnegative(),
+  transaction_amount_refunded: z.number().nonnegative().optional(), currency_id: z.string(),
+  date_approved: z.string().datetime({ offset: true }).nullable().optional(), live_mode: z.boolean().optional(),
+  external_reference: z.string().nullable().optional(),
+});
+const invoiceSchema = z.object({
+  id: providerId, preapproval_id: providerId, debit_date: z.string().datetime({ offset: true }),
+  currency_id: z.string(), transaction_amount: z.coerce.number().positive(),
+  payment: z.object({ id: z.number().int().positive(), status: z.string() }).nullable().optional(),
+});
+export type FacturaMercadoPago = z.infer<typeof invoiceSchema>;
 
 /**
  * Indica si Mercado Pago tiene credenciales mínimas para operar.
@@ -71,6 +99,7 @@ export const crearPreapprovalMercadoPago = async (
   const respuesta = await mercadoPagoRequest<PreapprovalMercadoPagoCreado>('/preapproval', {
     method: 'POST',
     body: {
+      status: 'pending',
       reason: params.reason,
       payer_email: params.payerEmail,
       back_url: params.backUrl,
@@ -91,7 +120,7 @@ export const crearPreapprovalMercadoPago = async (
   });
 
   return {
-    id: respuesta.id,
+    id: providerId.parse(respuesta.id),
     initPoint: respuesta.initPoint ?? (respuesta as unknown as { init_point?: string }).init_point,
     sandboxInitPoint: respuesta.sandboxInitPoint ?? (respuesta as unknown as { sandbox_init_point?: string }).sandbox_init_point,
   };
@@ -101,7 +130,7 @@ export const crearPreapprovalMercadoPago = async (
  * Cancela una preaprobación activa en Mercado Pago.
  */
 export const cancelarPreapprovalMercadoPago = async (preapprovalId: string): Promise<void> => {
-  await mercadoPagoRequest(`/preapproval/${preapprovalId}`, {
+  await mercadoPagoRequest(`/preapproval/${providerId.parse(preapprovalId)}`, {
     method: 'PUT',
     body: { status: 'cancelled' },
   });
@@ -111,19 +140,46 @@ export const cancelarPreapprovalMercadoPago = async (preapprovalId: string): Pro
  * Consulta una preaprobación por ID.
  */
 export const obtenerPreapprovalMercadoPago = async (preapprovalId: string): Promise<PreapprovalMercadoPago> => {
-  return mercadoPagoRequest<PreapprovalMercadoPago>(`/preapproval/${preapprovalId}`, {
+  return preapprovalSchema.parse(await mercadoPagoRequest(`/preapproval/${providerId.parse(preapprovalId)}`, {
     method: 'GET',
-  });
+  }));
 };
 
 /**
  * Consulta un pago por ID.
  */
 export const obtenerPagoMercadoPago = async (paymentId: string): Promise<PagoMercadoPago> => {
-  return mercadoPagoRequest<PagoMercadoPago>(`/v1/payments/${paymentId}`, {
+  const result = paymentSchema.parse(await mercadoPagoRequest(`/v1/payments/${providerId.parse(paymentId)}`, {
     method: 'GET',
-  });
+  }));
+  return { ...result, external_reference: result.external_reference ?? undefined };
 };
+
+/** Consulta la factura recurrente, cuyo ID no es el ID de payment. */
+export async function obtenerFacturaMercadoPago(id: string): Promise<FacturaMercadoPago> {
+  return invoiceSchema.parse(await mercadoPagoRequest(`/authorized_payments/${providerId.parse(id)}`, { method: 'GET' }));
+}
+
+/** Reconcilia los ultimos cobros de un contrato, sin iniciar cobros nuevos. */
+export async function listarFacturasMercadoPago(preapprovalId: string): Promise<FacturaMercadoPago[]> {
+  const response = await mercadoPagoRequest(`/authorized_payments/search?preapproval_id=${providerId.parse(preapprovalId)}&limit=50&offset=0`, { method: 'GET' });
+  return z.object({ results: z.array(invoiceSchema) }).parse(response).results;
+}
+
+/** Recupera un checkout tras una interrupcion sin crear otro contrato recurrente. */
+export async function buscarPreapprovalMercadoPago(reference: string): Promise<PreapprovalMercadoPago | null> {
+  const response = await mercadoPagoRequest(`/preapproval/search?external_reference=${encodeURIComponent(reference)}&limit=20`, { method: 'GET' });
+  const matches = z.object({ results: z.array(preapprovalSchema) }).parse(response).results
+    .filter(item => item.external_reference === reference && item.status !== 'cancelled');
+  if (matches.length > 1) throw new ApiError('El proveedor requiere revisar contratos duplicados antes de continuar.', 409);
+  return matches[0] ?? null;
+}
+
+/** Cambia el importe de los proximos debitos sin cobrar ni prorratear ahora. */
+export async function actualizarImporteMercadoPago(id: string, amount: number, currency: string): Promise<void> {
+  await mercadoPagoRequest(`/preapproval/${providerId.parse(id)}`, { method: 'PUT',
+    body: { auto_recurring: { transaction_amount: amount, currency_id: currency } } });
+}
 
 /**
  * Valida firma de webhook cuando MERCADOPAGO_WEBHOOK_SECRET está configurado.
@@ -134,7 +190,7 @@ export const validarFirmaMercadoPago = (
   dataId: string | undefined
 ): boolean => {
   if (!env.MERCADOPAGO_WEBHOOK_SECRET) {
-    return true;
+    return false;
   }
 
   if (!xSignature || !xRequestId || !dataId) {
@@ -146,11 +202,11 @@ export const validarFirmaMercadoPago = (
     .map((parte) => parte.trim().split('='))
     .find(([clave]) => clave === 'v1')?.[1];
 
-  if (!firma) {
+  if (!firma || !/^[a-fA-F0-9]{64}$/.test(firma) || !/^\d{10,13}$/.test(extraerTimestampFirma(xSignature))) {
     return false;
   }
 
-  const manifest = `id:${dataId};request-id:${xRequestId};ts:${extraerTimestampFirma(xSignature)};`;
+  const manifest = `id:${dataId.toLowerCase()};request-id:${xRequestId};ts:${extraerTimestampFirma(xSignature)};`;
   const expected = crypto
     .createHmac('sha256', env.MERCADOPAGO_WEBHOOK_SECRET)
     .update(manifest)
@@ -160,7 +216,7 @@ export const validarFirmaMercadoPago = (
     return false;
   }
 
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(firma));
+  return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(firma, 'hex'));
 };
 
 interface MercadoPagoRequestOptions {
@@ -180,6 +236,7 @@ const mercadoPagoRequest = async <T>(
   }
 
   const response = await fetch(`${MERCADO_PAGO_API_URL}${path}`, {
+    signal: AbortSignal.timeout(15000),
     method: options.method,
     headers: {
       Authorization: `Bearer ${env.MERCADOPAGO_ACCESS_TOKEN}`,
@@ -191,10 +248,7 @@ const mercadoPagoRequest = async <T>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const message = typeof data === 'object' && data && 'message' in data
-      ? String((data as { message: unknown }).message)
-      : 'Error desconocido de Mercado Pago.';
-    throw new Error(`Mercado Pago respondió ${response.status}: ${message}`);
+    throw new ApiError('Mercado Pago no pudo completar la operacion. Intentalo nuevamente.', 502);
   }
 
   return data as T;

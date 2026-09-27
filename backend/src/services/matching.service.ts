@@ -14,7 +14,7 @@ import { MATCHING_POLICY, MATCHING_WEIGHTS } from '../constants/matching';
 import { MATCHING_PROMPT_VERSION, MATCHING_SYSTEM_PROMPT } from '../ai/prompts/matching.prompt';
 import { matchingIdSchema } from '../validators/matching.validator';
 import { matchingJobFingerprint, matchingProfileFingerprint, publicMatchingJob, publicMatchProfessional } from '../domain/matching/matching';
-import { env } from '../config/env';
+import { aiProviderCacheConfig, env } from '../config/env';
 import { logger } from '../config/logger';
 import { metricas } from '../monitoring/metrics';
 import { pricingWorker } from '../workers/pricing.worker';
@@ -28,7 +28,7 @@ export class MatchingService {
   private configVersion(): string {
     return createHash('sha256').update(JSON.stringify({ policy: MATCHING_POLICY, weights: MATCHING_WEIGHTS,
       prompt: MATCHING_SYSTEM_PROMPT, version: MATCHING_PROMPT_VERSION, model: env.GEMINI_MATCHING_MODEL,
-      enabled: env.GEMINI_MATCHING_ENABLED, ttl: env.MATCHING_CACHE_TTL_SECONDS })).digest('hex');
+      enabled: env.GEMINI_MATCHING_ENABLED, providers: aiProviderCacheConfig(), ttl: env.MATCHING_CACHE_TTL_SECONDS })).digest('hex');
   }
   /** Valida parametros antes de construir rutas Firestore. */
   private id(value: string): void {

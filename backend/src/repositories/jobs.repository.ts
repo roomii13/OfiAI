@@ -9,6 +9,9 @@ import type * as FirebaseFirestore from 'firebase-admin/firestore';
 import { firestore } from '../integrations/firebase/admin';
 import { COLECCIONES } from '../database/firestore/collections';
 import { EstadoTrabajo, Trabajo } from '../models/Job';
+import { ApiError } from '../middleware/error.middleware';
+import { subscriptionRepository } from './subscription.repository';
+import { jobAgentEvent } from '../events/agent.event';
 
 export interface FiltrosTrabajos {
   empresaId?: string;
@@ -31,7 +34,18 @@ class JobsRepository {
    * Crea un trabajo.
    */
   async create(trabajo: Trabajo): Promise<Trabajo> {
-    await this.coleccion.doc(trabajo.id).set(trabajo);
+    await firestore.runTransaction(async tx => {
+      const ref = this.coleccion.doc(trabajo.id);
+      if ((await tx.get(ref)).exists) return;
+      const company = (await tx.get(firestore.collection(COLECCIONES.EMPRESAS).doc(trabajo.empresaId))).data();
+      if (!company?.usuarioId) throw new ApiError('Empresa no encontrada.', 404);
+      if (trabajo.estado === 'publicado') await subscriptionRepository.consumeQuota(tx, String(company.usuarioId), 'empresa', 'trabajosPublicados');
+      tx.create(ref, trabajo);
+      if(trabajo.estado==='publicado') {
+        const event=jobAgentEvent(trabajo.id,String(company.usuarioId));
+        tx.create(firestore.collection(COLECCIONES.AGENT_EVENTS).doc(event.id),event);
+      }
+    });
     return trabajo;
   }
 
@@ -77,6 +91,16 @@ class JobsRepository {
       const ref = this.coleccion.doc(id);
       const snapshot = await tx.get(ref);
       const current = snapshot.data() as Trabajo | undefined;
+      if (current?.estado === 'borrador' && data.estado === 'publicado') {
+        const company = (await tx.get(firestore.collection(COLECCIONES.EMPRESAS).doc(current.empresaId))).data();
+        if (!company?.usuarioId) throw new ApiError('Empresa no encontrada.', 404);
+        await subscriptionRepository.consumeQuota(tx, String(company.usuarioId), 'empresa', 'trabajosPublicados');
+        const event=jobAgentEvent(id,String(company.usuarioId));
+        tx.create(firestore.collection(COLECCIONES.AGENT_EVENTS).doc(event.id),event);
+      }
+      if (current?.coordinationState && current.coordinationState !== 'CANCELLED') {
+        throw new ApiError('Este trabajo se gestiona desde Coordinacion para conservar los acuerdos.', 409);
+      }
       const updated = { ...current, ...data, fechaActualizacion: new Date() };
       const aliases = current?.source === 'ai_intake' ? {
         title: updated.titulo, description: updated.descripcion, category: updated.categoria,

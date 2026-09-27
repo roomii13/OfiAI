@@ -10,6 +10,8 @@ import type { IntakeResult, IntakeSession } from '../models/intake.model';
 import type { IntakeSessionSummary } from '../../../shared/intake';
 import type { Trabajo } from '../models/Job';
 import { intakeEvent, type IntakeEventType } from '../events/intake.event';
+import { SubscriptionRepository } from './subscription.repository';
+import { jobAgentEvent } from '../events/agent.event';
 
 interface StoredSession extends IntakeSession {
   pending: { requestId: string; expiresAt: number } | null;
@@ -133,8 +135,11 @@ export class IntakeRepository {
       this.assertMutable(stored, version);
       if (!stored.readyToCreateJob) throw new ApiError('Todavia falta informacion para publicar.', 409);
       const job = build(publicSession(stored));
+      await new SubscriptionRepository(this.db).consumeQuota(tx, userId, 'empresa', 'trabajosPublicados');
       const session: IntakeSession = { ...publicSession(stored), status: 'published', jobId: job.id, version: stored.version + 1, updatedAt: new Date().toISOString() };
       tx.create(this.db.collection(COLECCIONES.TRABAJOS).doc(job.id), job);
+      const orchestrationEvent=jobAgentEvent(job.id,userId);
+      tx.create(this.db.collection(COLECCIONES.AGENT_EVENTS).doc(orchestrationEvent.id),orchestrationEvent);
       tx.update(ref, { ...session, pending: null, confirmedAt: new Date(), confirmedVersion: stored.version });
       this.event(tx, 'job_created_from_ai', session);
       return session;

@@ -1,5 +1,10 @@
 # Database
 
+Las nuevas colecciones CRM, campanas, soporte, ejecuciones/eventos, conocimiento,
+auditoria y observaciones IA estan detalladas en
+[Agentes comerciales y operaciones](docs/BusinessAgents.md#firestore).
+Las reglas e indices agregados el 27/09/2026 todavia requieren despliegue y validacion.
+
 OfiAI usa Firestore como base transaccional principal. Los modelos historicos guardan fechas como `Date`/Timestamp; matching usa ISO UTC para corridas/resultados y Timestamp para eventos.
 
 ## Base Configurada
@@ -170,3 +175,13 @@ Eventos mínimos:
 - `notificacion_enviada`
 
 Los reportes guardan parámetros, rango, métricas agregadas y formato de exportación.
+
+## Coordinator
+
+Workflow y evidencia bilateral en subcolecciones privadas del Job:
+`coordinator`, `coordinator_history`, `coordinator_commands` y `coordinator_offers`.
+`coordination_workflows` es el indice de bandejas por participante.
+`coordinator_outbox` conserva la finalizacion hasta implementar reviews verificadas.
+Se reutilizan `proposals`, `notifications` y `analytics_events`; las ofertas de empresa no se
+atribuyen a un profesional hasta que este las acepta. No hay movimientos de dinero.
+Esquema, permisos y transacciones: [Coordinator](docs/CoordinatorAgent.md).

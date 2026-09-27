@@ -24,13 +24,18 @@ export class MatchingAgent {
     if (candidates.length === 0) return { matches: [], used: false, fallback: false };
     try {
       if (!env.GEMINI_MATCHING_ENABLED || !geminiClient.estaDisponible()) throw new GeminiIntakeError('unavailable');
+      const expected = new Set(candidates.map(candidate => candidate.profesional.id));
+      const valid = (value: unknown): boolean => {
+        const result = semanticMatchesSchema.safeParse(value);
+        if (!result.success) return false;
+        const ids = result.data.matches.map(match => match.professionalId);
+        return ids.length === expected.size && new Set(ids).size === ids.length && ids.every(id => expected.has(id));
+      };
       const raw = await geminiClient.generarEstructurado(MATCHING_SYSTEM_PROMPT, matchingPrompt(publicMatchingJob(job), candidates),
-        MATCHING_RESPONSE_SCHEMA, { model: env.GEMINI_MATCHING_MODEL, timeoutMs: 30000 });
+        MATCHING_RESPONSE_SCHEMA, { model: env.GEMINI_MATCHING_MODEL, timeoutMs: 30000, validate: valid });
       const parsed = semanticMatchesSchema.safeParse(raw);
       if (!parsed.success) throw new GeminiIntakeError('invalid_response');
-      const expected = new Set(candidates.map(candidate => candidate.profesional.id));
-      const ids = parsed.data.matches.map(match => match.professionalId);
-      if (ids.length !== expected.size || new Set(ids).size !== ids.length || ids.some(id => !expected.has(id))) throw new GeminiIntakeError('invalid_response');
+      if (!valid(parsed.data)) throw new GeminiIntakeError('invalid_response');
       return { matches: parsed.data.matches.map(match => ({ ...match, reason: matchingText(match.reason, 600),
         strengths: match.strengths.map(value => matchingText(value, 240)), concerns: match.concerns.map(value => matchingText(value, 240)) })), used: true, fallback: false };
     } catch (error) {

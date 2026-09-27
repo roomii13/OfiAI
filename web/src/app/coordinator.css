@@ -1,0 +1,56 @@
+/** @archivo coordinator.css @descripcion Coordinacion operativa, clara y responsive. */
+.coordinator-page { max-width: 1160px; margin: auto; color: #202d32; letter-spacing: 0; background: #fff; padding: 24px; }
+.coordinator-page * { box-sizing: border-box; min-width: 0; }
+.coordinator-page p, .coordinator-page h1, .coordinator-page h2, .coordinator-page h3, .coordinator-page dd, .coordinator-page time { overflow-wrap: anywhere; }
+.coordinator-page p { line-height: 1.55; margin: 10px 0; }
+.coordinator-page h1 { font-size: 26px; line-height: 1.25; font-weight: 700; }
+.coordinator-page h2 { font-size: 18px; font-weight: 650; line-height: 1.4; }
+.coordinator-page h3 { font-size: 16px; font-weight: 650; }
+.coordinator-page h2 svg { display: inline; vertical-align: middle; }
+.coordinator-page button, .coordinator-page input, .coordinator-page select, .coordinator-page textarea { border-radius: 6px; letter-spacing: 0; }
+.coordinator-page button { min-height: 44px; white-space: normal; text-align: left; }
+.coordinator-page button:disabled { opacity: .55; cursor: not-allowed; }
+.coordinator-page button svg, .coordinator-page a svg { flex-shrink: 0; }
+.coordinator-page :focus-visible { outline: 2px solid #087c85; outline-offset: 3px; }
+.coordinator-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px; color: #326a77; }
+.coordinator-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; }
+.coordinator-icon { width: 44px; height: 44px; flex-shrink: 0; justify-content: center; padding: 0; }
+.coordinator-summary { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; padding: 20px; background: #f0f7fa; border-block: 1px solid #d7e5ea; }
+.coordinator-section { padding: 24px 0; border-top: 1px solid #dfe6e8; }
+.coordinator-agreement { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 28px; }
+.coordinator-amount { font-size: 22px; font-weight: 700; color: #256952; }
+.coordinator-page dl { display: grid; gap: 14px; margin-top: 16px; }
+.coordinator-page dt { font-size: 13px; color: #56676e; }
+.coordinator-page dd { margin: 3px 0 0; line-height: 1.5; }
+.coordinator-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.coordinator-form { margin-top: 20px; padding: 20px 0; border-block: 1px solid #c8d9de; }
+.coordinator-form fieldset { border: 0; padding: 0; margin: 0; }
+.coordinator-consent { display: flex; align-items: flex-start; gap: 10px; line-height: 1.55; margin: 20px 0; }
+.coordinator-consent input { width: 20px; height: 20px; margin-top: 3px; flex-shrink: 0; accent-color: #227a68; }
+.coordinator-note { display: grid; gap: 8px; font-size: 14px; }
+.coordinator-note textarea { width: 100%; min-height: 88px; resize: vertical; }
+.coordinator-error { background: #fff1f2; color: #972d42; padding: 16px; margin: 16px 0; }
+.coordinator-pending, .coordinator-warning { background: #fff8df; color: #68531b; padding: 16px; margin: 16px 0; }
+.coordinator-danger { color: #9b2542; border-color: #d6a6b2; }
+.coordinator-history { margin: 18px 0 0; padding-left: 24px; }
+.coordinator-history li { padding: 10px 0; border-bottom: 1px solid #e3e8e9; }
+.coordinator-history p { font-size: 14px; }
+.coordinator-inbox { padding: 0; margin: 20px 0; list-style: none; }
+.coordinator-inbox li { border-top: 1px solid #dfe6e8; }
+.coordinator-inbox li:last-child { border-bottom: 1px solid #dfe6e8; }
+.coordinator-inbox a { display: flex; gap: 20px; align-items: center; justify-content: space-between; padding: 20px 8px; }
+.coordinator-inbox a:hover { background: #f1f8f6; }
+.coordinator-inbox time { font-size: 13px; color: #56676e; }
+.coordinator-pagination { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+@media (max-width: 760px) {
+  .coordinator-page { padding: 18px; }
+  .coordinator-summary, .coordinator-agreement { grid-template-columns: 1fr; gap: 0; }
+  .coordinator-summary { gap: 12px; }
+}
+@media (max-width: 420px) {
+  .coordinator-page { padding: 12px; }
+  .coordinator-page h1 { font-size: 23px; }
+  .coordinator-buttons { flex-direction: column; }
+  .coordinator-buttons button { width: 100%; }
+  .coordinator-pagination { flex-wrap: wrap; }
+}

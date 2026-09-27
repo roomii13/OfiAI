@@ -35,6 +35,7 @@ function PricingPage({ jobId }: { jobId: string }) {
   }
   return <DashboardLayout><main className="pricing-page">
     <Link className="pricing-back" to={'/dashboard/company/jobs/' + encodeURIComponent(jobId) + '/matches'}><ArrowLeft size={17} />Profesionales</Link>
+    <Link className="ofi-btn-secondary" to={'/dashboard/coordination/' + encodeURIComponent(jobId)}>Ir a coordinacion</Link>
     <header className="pricing-header"><div><span className="pricing-kicker"><Calculator size={18} />OFIAI · PRICING</span><h1>Estimacion del trabajo</h1><p>{view?.job.title ?? 'Analizando la solicitud'}</p></div>
       <button title="Actualizar estimacion" aria-label="Actualizar estimacion" className="ofi-btn-secondary" disabled={pricing.busy} onClick={() => { void pricing.reload(); }}><RefreshCw size={18} /></button></header>
     {pricing.error && <div className="pricing-error" role="alert">{pricing.error}<button className="ofi-btn-secondary" disabled={pricing.busy} onClick={() => { void pricing.reload(); }}>Reintentar</button></div>}
@@ -74,7 +75,7 @@ function PricingPage({ jobId }: { jobId: string }) {
   </main></DashboardLayout>;
 }
 /** Editor comun de terminos de alcance y presupuestos. */
-function PricingFields({ value, onChange, quote = false }: { value: PricingInputs; onChange: (v: PricingInputs) => void; quote?: boolean }) {
+export function PricingFields({ value, onChange, quote = false, requireCoverage = false }: { value: PricingInputs; onChange: (v: PricingInputs) => void; quote?: boolean; requireCoverage?: boolean }) {
   /** Actualiza un campo conservando todos los terminos del formulario. */
   function change<K extends keyof PricingInputs>(key: K, next: PricingInputs[K]): void { onChange({ ...value, [key]: next }); }
   return <div className="pricing-fields">
@@ -82,8 +83,8 @@ function PricingFields({ value, onChange, quote = false }: { value: PricingInput
     <label>Moneda<input className="ofi-input" required pattern="[A-Z]{3}" maxLength={3} value={value.currency} onChange={e => change('currency', e.target.value.toUpperCase())} /></label>
     <label>Unidad<select aria-label="Unidad" className="ofi-input" value={value.unit} onChange={e => onChange({ ...value, unit: e.target.value as PricingInputs['unit'], quantity: e.target.value === 'job' ? 1 : value.quantity })}>{Object.entries(units).map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>
     <label>Cantidad<input className="ofi-input" required type="number" min=".01" max="100000" step=".01" disabled={value.unit === 'job'} value={value.quantity} onChange={e => change('quantity', Number(e.target.value))} /></label>
-    <label>Materiales<select className="ofi-input" value={value.materials} onChange={e => onChange({ ...value, materials: e.target.value as PricingInputs['materials'], materialsCost: null })}>{Object.entries(coverage).map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>
-    <label>Impuestos<select className="ofi-input" value={value.taxes} onChange={e => change('taxes', e.target.value as PricingInputs['taxes'])}>{Object.entries(coverage).map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>
+    <label>Materiales<select required={requireCoverage} className="ofi-input" value={value.materials} onChange={e => onChange({ ...value, materials: e.target.value as PricingInputs['materials'], materialsCost: null })}>{Object.entries(coverage).map(([key, text]) => <option key={key} value={key} disabled={requireCoverage && key === 'unknown'}>{text}</option>)}</select></label>
+    <label>Impuestos<select required={requireCoverage} className="ofi-input" value={value.taxes} onChange={e => change('taxes', e.target.value as PricingInputs['taxes'])}>{Object.entries(coverage).map(([key, text]) => <option key={key} value={key} disabled={requireCoverage && key === 'unknown'}>{text}</option>)}</select></label>
     {!quote && <><label>Materiales: costo conocido separado<input className="ofi-input" type="number" min="0" max="1000000000" step=".01" disabled={value.materials !== 'excluded'} value={value.materialsCost ?? ''} onChange={e => change('materialsCost', e.target.value === '' ? null : Number(e.target.value))} /></label>
     <label>Experiencia requerida (anos)<input className="ofi-input" type="number" min="0" max="60" step="1" value={value.requiredExperienceYears ?? ''} onChange={e => change('requiredExperienceYears', e.target.value === '' ? null : Number(e.target.value))} /></label></>}
   </div>;

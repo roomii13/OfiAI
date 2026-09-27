@@ -66,6 +66,7 @@ function MatchingView({ jobId }: { jobId: string }) {
     <div className="matching-page">
       <Link to="/jobs" className="matching-back"><ArrowLeft size={16} />Mis trabajos</Link>
       <Link className="ofi-btn-secondary" to={'/dashboard/company/jobs/' + encodeURIComponent(jobId) + '/pricing'}>Ver estimacion de precio</Link>
+      <Link className="ofi-btn-secondary" to={'/dashboard/coordination/' + encodeURIComponent(jobId)}>Ir a coordinacion</Link>
       <header className="matching-header">
         <div><div className="matching-eyebrow"><Sparkles size={16} />OFIAI · MATCHING</div><h1>Profesionales recomendados</h1>
           <p>{result?.message ?? 'Buscando las personas adecuadas para tu solicitud.'}</p></div>

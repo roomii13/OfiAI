@@ -1,13 +1,22 @@
 # Deployment
 
-Esta guía cubre despliegue de backend, web y mobile con Mercado Pago, Firebase, Resend, WhatsApp y Gemini.
+Esta guía cubre despliegue de backend, web y mobile con Mercado Pago, Firebase, Resend, WhatsApp y Groq.
+
+## Proveedor IA Actual
+
+Configurar GROQ_API_KEY exclusivamente como secreto del backend. Groq es el proveedor
+principal y AI_LEGACY_FALLBACK_ENABLED=false desactiva DeepSeek/Gemini aunque sus claves
+sigan presentes. Para evitar cobros usar una organizacion Free y comprobar su plan en
+Groq; el codigo no cambia la facturacion de la cuenta. Guia: [Groq](docs/Groq.md).
+El modelo inicial es Preview; revisar disponibilidad y calidad antes de produccion.
 
 ## Nota de Fase 5
 
 El destino acordado por el usuario es Cloudflare para web y backend. Las instrucciones Cloud Run que siguen son referencia previa, no un despliegue realizado ni la configuracion final elegida.
 Esta fase implementa Matching, no cambia infraestructura. Faltan validar el despliegue Cloudflare y las reglas remotas antes de produccion.
 Nuevas variables solo backend: GEMINI_MATCHING_MODEL=gemini-3.6-flash, GEMINI_MATCHING_ENABLED=true, MATCHING_CACHE_TTL_SECONDS=1800.
-No agregar GEMINI_API_KEY a web/mobile. El diagnostico actual del proveedor devuelve HTTP 402; revisar proyecto/plan en AI Studio sin asumir que habilitar la API habilita cuota.
+No agregar GROQ_API_KEY, DEEPSEEK_API_KEY ni GEMINI_API_KEY a web/mobile. En la verificacion
+historica del 26-09-2026 los proveedores anteriores devolvieron HTTP 402; no estan activos por defecto.
 Pruebas y pendientes exactos: [Matching Agent](docs/MatchingAgent.md).
 
 ## Validación Previa
@@ -30,7 +39,7 @@ npm run typecheck
 
 ## Backend
 
-Destino recomendado: Google Cloud Run.
+Referencia anterior: Google Cloud Run. El destino elegido es Cloudflare y todavia requiere adaptacion y despliegue del backend.
 
 El backend mantiene Firestore/Firebase Admin como base principal.
 
@@ -42,7 +51,10 @@ Variables obligatorias en producción:
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
 - `FIREBASE_STORAGE_BUCKET`
-- `GEMINI_API_KEY`
+- `GROQ_API_KEY` (proveedor actual)
+- `GROQ_MODEL=qwen/qwen3.8-27b`
+- `AI_LEGACY_FALLBACK_ENABLED=false`
+- `AI_BUSINESS_LLM_ENABLED=true` (habilita IA externa en los agentes comerciales)
 - `MERCADOPAGO_ACCESS_TOKEN`
 - `MERCADOPAGO_WEBHOOK_SECRET`
 - `MERCADOPAGO_NOTIFICATION_URL`

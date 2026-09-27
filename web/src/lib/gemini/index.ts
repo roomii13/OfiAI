@@ -1,6 +1,6 @@
 /**
  * @archivo lib/gemini/index.ts
- * @descripcion Cliente de Gemini AI para el frontend de OfiAI.
+ * @descripcion Cliente de la API IA de OfiAI; Groq y cualquier respaldo se resuelven solo en backend.
  * Expone helpers que consumen el módulo de IA del backend sin filtrar claves al navegador.
  * @modulo Lib
  */
@@ -19,7 +19,7 @@ export interface ChatIaRequest {
  */
 export interface ChatIaResponse {
   respuesta: string;
-  origen: 'reglas' | 'gemini';
+  proveedor: 'reglas' | 'groq' | 'deepseek' | 'gemini';
   accionesSugeridas?: string[];
 }
 
@@ -68,7 +68,7 @@ export async function enviarMensajeIa(request: ChatIaRequest, token?: string): P
 }
 
 /**
- * Clasifica una solicitud usando las reglas del backend y Gemini cuando esté habilitado.
+ * Clasifica una solicitud usando las reglas del backend.
  */
 export async function clasificarSolicitudIa(
   request: ClasificacionIaRequest,

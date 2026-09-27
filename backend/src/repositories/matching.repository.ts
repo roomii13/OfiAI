@@ -45,6 +45,7 @@ export class MatchingRepository {
       const snapshot = await tx.get(ref);
       const jobDoc = await tx.get(this.job(job.id));
       const currentJob = jobDoc.data() as Trabajo | undefined;
+      if (currentJob?.coordinationState && currentJob.coordinationState !== 'CANCELLED') throw new ApiError('Ya existe una coordinacion. Conserva la seleccion acordada.', 409);
       const fingerprint = matchingJobFingerprint(job);
       if (!currentJob || currentJob.empresaId !== job.empresaId || matchingJobFingerprint(currentJob) !== fingerprint) throw new ApiError('La solicitud cambio. Actualiza la pantalla.', 409);
       const old = snapshot.exists ? snapshot.data() as MatchingRun : null;
@@ -109,6 +110,7 @@ export class MatchingRepository {
       const match = await tx.get(matchRef);
       const professionalDoc = await tx.get(this.db.collection(C.PROFESIONALES).doc(professionalId));
       const professional = professionalDoc.exists ? { ...professionalDoc.data(), id: professionalDoc.id } as Profesional : null;
+      if (storedJob?.coordinationState && storedJob.coordinationState !== 'CANCELLED') throw new ApiError('No se puede cambiar el profesional durante una coordinacion.', 409);
       const run = meta.data() as MatchingRun | undefined;
       if (!run || run.runId !== runId || !['completed', 'fallback'].includes(run.status) || !(Date.parse(run.expiresAt ?? '') > Date.now())
         || !storedJob || storedJob.empresaId !== job.empresaId || run.fingerprint !== matchingJobFingerprint(storedJob)

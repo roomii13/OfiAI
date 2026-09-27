@@ -1,5 +1,12 @@
 # API
 
+## Agentes y operaciones (27/09/2026)
+
+Las rutas nuevas /sales, /marketing, /support, /intelligence, /agents, /knowledge,
+/governance y /admin/operations estan documentadas con metodos y permisos en
+[Agentes comerciales y operaciones](docs/BusinessAgents.md#endpoints-nuevos).
+Compilacion validada; pruebas funcionales y de autorizacion aplazadas en esta entrega.
+
 Base URL local: `http://localhost:8080/api/v1`.
 
 Todas las rutas privadas esperan `Authorization: Bearer <firebase-id-token>`. El backend entrega `customToken` en login/registro y el cliente debe intercambiarlo por ID token con Firebase cuando use endpoints protegidos.
@@ -107,7 +114,17 @@ Contrato, cache, errores y seguridad: [Matching Agent](docs/MatchingAgent.md).
 | `POST` | `/analytics/reports` | `admin` | Generar reporte |
 | `GET` | `/analytics/reports/:id/export` | `admin` | Exportar JSON o CSV |
 
-## Scheduler
+## Coordinator
+
+Prefijo `/api/v1`, Firebase Auth y ownership en cada operacion.
+- `GET /coordinator?cursor=...`: bandeja propia empresa/profesional.
+- `GET /jobs/:id/coordinator`: Job autorizado, workflow, proxima accion e historial.
+- `POST /jobs/:id/coordinator`: inicia con `{ idempotencyKey, acknowledgeEstimate: true }`.
+- `POST /jobs/:id/coordinator/commands`: `{ workflowId, revision, idempotencyKey, action, quote?, schedule?, note? }`.
+
+Los comandos no aceptan estados arbitrarios. Contratos completos: [Coordinator](docs/CoordinatorAgent.md).
+
+## Tareas programadas
 
 | Método | Ruta | Roles | Uso |
 |---|---|---|---|

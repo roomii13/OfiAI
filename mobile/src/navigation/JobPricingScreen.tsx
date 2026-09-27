@@ -47,6 +47,7 @@ function Pricing({ jobId }: { jobId: string }) {
   return <SafeAreaView style={[s.root, { backgroundColor: colores.fondo }]}>
     <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
       <Button label="Profesionales" onPress={() => nav.navigate('JobMatches', { jobId })} />
+      <Button label="Coordinar trabajo" onPress={() => nav.navigate('JobCoordinator', { jobId })} />
       <Text style={[s.title, { color: colores.texto }]} accessibilityRole="header">Estimacion del trabajo</Text>
       <Text style={{ color: colores.texto }}>{view?.job.title ?? 'Cargando solicitud'}</Text>
       <Text style={{ color: colores.textoSuave }}>{view?.job.category} · {view?.job.location.city ?? ''}</Text>

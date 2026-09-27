@@ -3,7 +3,6 @@
  * @descripcion Constantes globales para la aplicación móvil de OfiAI.
  * @modulo Mobile Constants
  */
-const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
 
 export const COLORES_MARCA = {
   primario: '#6c32e8',
@@ -17,19 +16,20 @@ export const COLORES_MARCA = {
   texto: '#1e1b4b',
 };
 
-export const API_URL = env?.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
-export const MERCADO_PAGO_PUBLIC_KEY = env?.EXPO_PUBLIC_MERCADOPAGO_PUBLIC_KEY || '';
-export const DEMO_ACCESS_ENABLED = env?.EXPO_PUBLIC_ENABLE_DEMO_ACCESS === 'true'
-  || (env?.EXPO_PUBLIC_ENABLE_DEMO_ACCESS !== 'false' && typeof __DEV__ !== 'undefined' && __DEV__);
+/** Expo requiere referencias estaticas para insertar solo configuracion publica al compilar. */
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+export const MERCADO_PAGO_PUBLIC_KEY = process.env.EXPO_PUBLIC_MERCADOPAGO_PUBLIC_KEY || '';
+export const DEMO_ACCESS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_DEMO_ACCESS === 'true'
+  || (process.env.EXPO_PUBLIC_ENABLE_DEMO_ACCESS !== 'false' && typeof __DEV__ !== 'undefined' && __DEV__);
 
 export const FIREBASE_CONFIG = {
-  apiKey: env?.EXPO_PUBLIC_FIREBASE_API_KEY || '',
-  authDomain: env?.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
-  projectId: env?.EXPO_PUBLIC_FIREBASE_PROJECT_ID || '',
-  storageBucket: env?.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: env?.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: env?.EXPO_PUBLIC_FIREBASE_APP_ID || '',
-  measurementId: env?.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || '',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '',
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID || '',
 } as const;
 
 export const RUTAS_NAVEGACION = {

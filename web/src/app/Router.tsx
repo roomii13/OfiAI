@@ -6,6 +6,8 @@
  * @modulo Routing
  */
 import { Fragment, type FormEvent, type ReactNode, useState } from 'react';
+import { SubscriptionBillingPanel } from './SubscriptionBillingPanel';
+import { AgentWorkspace } from './AgentWorkspace';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -29,6 +31,7 @@ import { DashboardLayout } from '../layouts/DashboardLayout';
 import { IntakePage } from './IntakePage';
 import { JobMatchesPage } from './JobMatchesPage';
 import { JobPricingPage } from './JobPricingPage';
+import { CoordinatorPage, CoordinationInboxPage } from './CoordinatorPage';
 import {
   useAuth,
   type RegisterCompanyInput,
@@ -73,9 +76,12 @@ export function AppRouter() {
       <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
 
       <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+      <Route path="/operations/:section" element={<RequireAuth><AgentWorkspace /></RequireAuth>} />
       <Route path="/dashboard/company/ai-request" element={<RequireAuth roles={['empresa']}><IntakePage /></RequireAuth>} />
       <Route path="/dashboard/company/jobs/:jobId/matches" element={<RequireAuth roles={['empresa']}><JobMatchesPage /></RequireAuth>} />
       <Route path="/dashboard/company/jobs/:jobId/pricing" element={<RequireAuth roles={['empresa']}><JobPricingPage /></RequireAuth>} />
+      <Route path="/dashboard/coordination" element={<RequireAuth roles={['empresa', 'profesional']}><CoordinationInboxPage /></RequireAuth>} />
+      <Route path="/dashboard/coordination/:jobId" element={<RequireAuth roles={['empresa', 'profesional']}><CoordinatorPage /></RequireAuth>} />
       <Route path="/companies" element={<RequireAuth roles={['empresa', 'admin']}><CompaniesPage /></RequireAuth>} />
       <Route path="/professionals" element={<RequireAuth><ProfessionalsPage /></RequireAuth>} />
       <Route path="/jobs" element={<RequireAuth><JobsPage /></RequireAuth>} />
@@ -699,7 +705,7 @@ function AiPage() {
  */
 function SubscriptionsPage() {
   const { role } = useAuth();
-  const available = useApiResource<PlanData[]>('/subscriptions/plans');
+  const available = useApiResource<PlanData[]>(role ? '/subscriptions/plans' + (role === 'admin' ? '' : '?audience=' + role) : null);
   const current = useApiResource<SubscriptionData | null>('/subscriptions/me');
   const history = useApiResource<{ eventos: Array<{ id: string; descripcion: string }> }>('/subscriptions/history');
   const [status, setStatus] = useState('');
@@ -708,8 +714,19 @@ function SubscriptionsPage() {
   /** Solicita un checkout real para el plan elegido. */
   async function handleSubscribe(plan: PlanSuscripcion): Promise<void> {
     if (pending) return;
+    const selected = available.data?.find(item => item.id === plan);
+    if (!selected?.available) return;
+    const change = current.data && current.data.plan !== 'gratuito' && current.data.estado === 'activa';
+    const terms = selected.priceUsd === 0 ? 'Plan FREE.' : selected.moneda + ' ' + selected.precioMensual?.toLocaleString()
+      + ' por mes, con renovacion automatica hasta que canceles.';
+    if (!window.confirm(terms + (change ? ' El cambio se aplicara al siguiente ciclo, sin prorrateo inmediato.' : ' Continuar al checkout?'))) return;
     setPending(true); setStatus('');
     try {
+      if (change) {
+        await api.post('/subscriptions/' + current.data!.id + '/change-plan', { plan });
+        setStatus('Cambio programado para el siguiente periodo confirmado.');
+        current.reload(); history.reload(); return;
+      }
       const response = await api.post<ApiEnvelope<{ checkout: { url?: string; estado: string } }>>('/subscriptions/checkout', {
         plan, successUrl: `${window.location.origin}/subscriptions/success`, cancelUrl: `${window.location.origin}/subscriptions`,
       });
@@ -726,16 +743,23 @@ function SubscriptionsPage() {
       <PageHeader eyebrow="Suscripciones" title="Planes OfiAI" description="Suscripcion mensual con renovacion automatica" />
       <ResourceState resource={available} />
       <ResourceState resource={current} />
-      {current.data && <p className="mb-4">Plan {current.data.plan}: {current.data.estado}. Renovacion automatica: {current.data.renovacionAutomatica ? 'si' : 'no'}.</p>}
+      {current.data && <p className="mb-4">Plan {available.data?.find(plan => plan.id === current.data?.plan)?.nombre ?? current.data.plan}: {current.data.estado}. Renovacion automatica: {current.data.renovacionAutomatica ? 'si' : 'no'}.</p>}
       {current.data === null && <p className="mb-4">Todavia no tenes una suscripcion.</p>}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {available.data?.map(plan => <article className="rounded-lg border border-border bg-white p-5" key={plan.id}>
+      <SubscriptionBillingPanel onChanged={() => { current.reload(); history.reload(); }} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {available.data?.map((plan, index) => <article className={['bg-sky-50', 'bg-emerald-50', 'bg-violet-50', 'bg-rose-50'][index % 4] + ' flex min-w-0 flex-col rounded-lg border border-border p-5'} key={plan.audience + plan.id}>
           <Banknote className="h-5 w-5 text-emerald-700" />
           <h2 className="mt-3 text-lg font-semibold">{plan.nombre}</h2>
-          <p className="mt-4 text-2xl">{plan.moneda} {plan.precioMensual.toLocaleString()}<span className="text-sm">/mes</span></p>
-      <ul className="mt-4 space-y-2">{Object.entries(role === 'profesional' ? plan.limitesProfesional : plan.limitesEmpresa).map(([key, value]) =>
+          {role === 'admin' && <p className="text-sm">{plan.audience}</p>}
+          <p className="mt-4 text-2xl">US$ {plan.priceUsd}<span className="text-sm">/mes</span></p>
+          {plan.priceUsd > 0 && <p className="mt-2 text-sm">{plan.precioMensual !== null
+            ? plan.moneda + ' ' + plan.precioMensual.toLocaleString() + ' por mes' : 'Importe local pendiente de configuracion'}</p>}
+      <ul className="my-4 flex-1 space-y-2">{Object.entries(plan.audience === 'profesional' ? plan.limitesProfesional : plan.limitesEmpresa)
+        .filter(([key]) => key === 'trabajosPublicados' || key === 'propuestasEnviadas').map(([key, value]) =>
             <li key={key}>{metricLabel(key)}: {value === -1 ? 'Sin limite' : value}</li>)}</ul>
-          {role !== 'admin' && <button className="ofi-btn-primary mt-4" disabled={pending} onClick={() => void handleSubscribe(plan.id)}>Elegir plan</button>}
+          {role !== 'admin' && <button className="ofi-btn-primary mt-4" disabled={pending || !plan.available || (current.data?.plan === plan.id && current.data.estado === 'activa')}
+            onClick={() => void handleSubscribe(plan.id)}>{current.data?.plan === plan.id && current.data.estado === 'activa'
+              ? 'Plan actual' : plan.available ? 'Elegir ' + plan.nombre : 'Contratacion no disponible'}</button>}
         </article>)}
       </div>
       {status && <p role="status" className="mt-4">{status}</p>}

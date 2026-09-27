@@ -5,7 +5,7 @@
  */
 export type RolUsuario = 'empresa' | 'profesional' | 'admin';
 export type EstadoTrabajo = 'borrador' | 'publicado' | 'en_revision' | 'en_progreso' | 'completado' | 'cancelado';
-export type PlanSuscripcion = 'gratuito' | 'profesional' | 'empresa';
+export type PlanSuscripcion = import('../../../shared/billing').BillingPlanId;
 
 export interface UsuarioMobile {
   uid: string;
@@ -46,6 +46,8 @@ export type AuthStackParamList = {
 };
 
 export type AppTabParamList = {
+  Coordinator: undefined;
+  JobCoordinator: { jobId: string };
   JobPricing: { jobId: string };
   JobMatches: { jobId: string };
   SolicitudIA: undefined;
@@ -55,6 +57,8 @@ export type AppTabParamList = {
   Dashboard: undefined;
   Trabajos: undefined;
   Perfil: undefined;
+  Suscripciones: undefined;
+  Operaciones: undefined;
   IA: undefined;
   Notificaciones: undefined;
   Configuracion: undefined;

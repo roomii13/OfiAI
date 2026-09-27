@@ -38,11 +38,12 @@ export interface AccountData {
   usuario: { id: string; nombre: string; apellido?: string; email: string; rol: Role; pais: string;
     preferenciasNotificaciones?: NotificationPreferences };
 }
-export interface PlanData {
-  id: 'gratuito' | 'profesional' | 'empresa'; nombre: string; precioMensual: number; moneda: string;
-  limitesEmpresa: Record<string, number>; limitesProfesional: Record<string, number>;
+export type PlanData = import('./billing').CommercialPlan;
+export interface SubscriptionData {
+  id: string; plan: PlanData['id']; estado: string; renovacionAutomatica: boolean;
+  fechaVencimiento?: string; cancelAtPeriodEnd?: boolean; precioMensual?: number; moneda?: string;
+  pendingPlan?: { plan: PlanData['id']; precioMensual: number; effectiveAt: string } | null;
 }
-export interface SubscriptionData { id: string; plan: PlanData['id']; estado: string; renovacionAutomatica: boolean }
 export interface AdminUserData { id: string; nombre: string; email: string; rol: Role; activo: boolean }
 export interface UsageData {
   eventosPorTipo: Record<string, number>; eventosPorRol: Record<string, number>;

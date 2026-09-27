@@ -4,7 +4,7 @@
  * Gestiona los planes de pago de empresas y profesionales en la plataforma.
  * @modulo Modelos
  */
-export type PlanSuscripcion = 'gratuito' | 'profesional' | 'empresa';
+export type PlanSuscripcion = import('../../../shared/billing').BillingPlanId;
 export type EstadoSuscripcion = 'activa' | 'vencida' | 'cancelada' | 'trial' | 'pendiente_pago';
 
 export interface Suscripcion {
@@ -21,6 +21,15 @@ export interface Suscripcion {
   fechaInicio: Date;
   fechaVencimiento: Date;
   renovacionAutomatica: boolean;
+  catalogVersion?: string;
+  priceUsd?: number;
+  checkoutUrl?: string;
+  checkoutAttempted?: boolean;
+  providerStatus?: string;
+  cancelAtPeriodEnd?: boolean;
+  pendingPlan?: { plan: PlanSuscripcion; precioMensual: number; priceUsd: number;
+    limits: import('../../../shared/billing').BillingLimits; effectiveAt: string } | null;
+  lastPaidAt?: string;
   limitesActuales: {
     trabajosPublicados?: number;
     propuestasEnviadas?: number;

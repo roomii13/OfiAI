@@ -3,6 +3,7 @@
  * @descripcion Fixtures y Firestore transaccional en memoria, solo para pruebas sin credenciales.
  */
 import { randomUUID } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { emptyIntakeData } from '../src/ai/tools/intake-state.tool';
 import type { IntakeData } from '../src/models/intake.model';
 
@@ -28,7 +29,7 @@ interface MemoryReference {
 interface MemoryQuery {
   doc: (id?: string) => MemoryReference; where: (field: string, operator: string, value: unknown) => MemoryQuery;
   limit: (value: number) => MemoryQuery; orderBy: (...args: unknown[]) => MemoryQuery;
-  select: (...fields: string[]) => MemoryQuery; startAfter: (doc: { id: string }) => MemoryQuery;
+  select: (...fields: string[]) => MemoryQuery; startAfter: (doc: { id: string } | string) => MemoryQuery;
   get: () => Promise<{ docs: MemorySnapshot[]; empty: boolean; size: number }>;
 }
 interface MemoryTransaction {
@@ -40,6 +41,15 @@ interface MemoryTransaction {
 export class MemoryFirestore {
   readonly documents = new Map<string, Data>();
   private queue: Promise<unknown> = Promise.resolve();
+  /** Aplica la eliminacion de campos del SDK sin guardar su sentinel como objeto. */
+  private merge(current: Data | undefined, patch: Data): Data {
+    const result = { ...current };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value instanceof FieldValue && value.isEqual(FieldValue.delete())) delete result[key];
+      else result[key] = structuredClone(value);
+    }
+    return result;
+  }
   /** Limpia unicamente datos sinteticos entre pruebas. */
   clear(): void { this.documents.clear(); }
   /** Selecciona solo campos publicos solicitados por el repositorio. */
@@ -64,7 +74,7 @@ export class MemoryFirestore {
           /** Guarda un fixture. */
           async set(data) { db.documents.set(key, structuredClone(data)); },
           /** Actualiza un fixture. */
-          async update(data) { db.documents.set(key, { ...db.documents.get(key), ...structuredClone(data) }); },
+          async update(data) { db.documents.set(key, db.merge(db.documents.get(key), data)); },
           /** Accede a una subcoleccion real en el mapa de pruebas. */
           collection(child) { return db.collection(key + '/' + child); },
         };
@@ -82,7 +92,7 @@ export class MemoryFirestore {
       /** Aplica la proyeccion de campos permitidos. */
       select(...values) { fields = values; return query; },
       /** Reanuda despues del cursor. */
-      startAfter(doc) { after = doc.id; return query; },
+      startAfter(doc) { after = typeof doc === 'string' ? doc : doc.id; return query; },
       /** Consulta solamente documentos hijos directos. */
       async get() {
         let rows = [...db.documents.entries()].filter(([key, value]) =>
@@ -115,7 +125,7 @@ export class MemoryFirestore {
         /** Actualiza un documento existente. */
         update: (ref, data) => {
           if (!staged.has(ref.key)) throw new Error('No existe');
-          wrote = true; staged.set(ref.key, { ...staged.get(ref.key), ...structuredClone(data) });
+          wrote = true; staged.set(ref.key, this.merge(staged.get(ref.key), data));
         },
         /** Guarda una version atomica. */
         set: (ref, data) => { wrote = true; staged.set(ref.key, structuredClone(data)); },

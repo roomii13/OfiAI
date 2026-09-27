@@ -16,7 +16,8 @@ afterEach(() => jest.restoreAllMocks());
 it('usa el cliente existente, esquema JSON y modelo configurado', async () => {
   const generation = jest.spyOn(geminiClient, 'generarEstructurado').mockResolvedValue({ matches: [row] });
   expect(await matchingAgent.analyze(job, candidates)).toMatchObject({ used: true, fallback: false, matches: [row] });
-  expect(generation.mock.calls[0][3]).toEqual({ model: env.GEMINI_MATCHING_MODEL, timeoutMs: 30000 });
+  expect(generation.mock.calls[0][3]).toEqual(expect.objectContaining({ model: env.GEMINI_MATCHING_MODEL, timeoutMs: 30000,
+    validate: expect.any(Function) }));
 });
 it.each(['JSON invalido', { matches: [{ ...row, semanticScore: 200 }] }, { matches: [{ ...row, professionalId: 'inventado' }] }, { matches: [row, row] }, { matches: [] }])('rechaza respuesta invalida o candidatos inventados', async value => {
   jest.spyOn(geminiClient, 'generarEstructurado').mockResolvedValue(value);

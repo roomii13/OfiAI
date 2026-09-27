@@ -27,6 +27,8 @@ jest.mock('../../src/middleware/rateLimit.middleware', () => ({
 const db = firestore as unknown as MemoryFirestore;
 let server: Server; let url: string;
 const path = '/jobs/job-matching';
+const providerConfig = { GROQ_API_KEY: env.GROQ_API_KEY, GROQ_MODEL: env.GROQ_MODEL,
+  AI_LEGACY_FALLBACK_ENABLED: env.AI_LEGACY_FALLBACK_ENABLED };
 /** Solicitud autenticada a Express, no invocacion directa de controller. */
 async function call(endpoint: string, body?: unknown, token = 'company-a') {
   const response = await fetch(url + endpoint, { method: body === undefined ? 'GET' : 'POST',
@@ -61,7 +63,17 @@ beforeEach(async () => {
   jest.spyOn(geminiClient, 'estaDisponible').mockReturnValue(true);
   jest.spyOn(geminiClient, 'generarEstructurado').mockImplementation(semantic);
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => { jest.restoreAllMocks(); Object.assign(env, providerConfig); });
+it.each(['activation', 'model', 'fallback'] as const)('invalida cache al cambiar proveedor: %s', async change => {
+  const first = (await call(path + '/matching', {})).body.datos;
+  if (change === 'activation') env.GROQ_API_KEY = 'test-key-not-a-secret';
+  if (change === 'model') env.GROQ_MODEL = 'test-model-v2';
+  if (change === 'fallback') env.AI_LEGACY_FALLBACK_ENABLED = !env.AI_LEGACY_FALLBACK_ENABLED;
+  expect((await call(path + '/matches')).body.datos.status).toBe('pending');
+  const next = (await call(path + '/matching', {})).body.datos;
+  expect(next.cached).toBe(false); expect(next.runId).not.toBe(first.runId);
+  expect(geminiClient.generarEstructurado).toHaveBeenCalledTimes(2);
+});
 it('requiere autenticacion y rol empresa en POST/GET/perfil/seleccion', async () => {
   for (const endpoint of ['/matching', '/matches', '/matches/pro-electrician/profile', '/matches/pro-electrician/select']) {
     const body = endpoint.endsWith('/matching') || endpoint.endsWith('/select') ? {} : undefined;

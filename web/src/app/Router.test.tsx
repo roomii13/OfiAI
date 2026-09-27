@@ -58,6 +58,9 @@ beforeEach(() => {
     return body instanceof Response ? body : new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });
   respond('GET /subscriptions/me', null);
+  respond('GET /subscriptions/billing', { pendingCheckout: null,
+    entitlements: { plan: 'gratuito', paid: false, period: '2026-09',
+      limits: { trabajosPublicados: 1, propuestasEnviadas: 0 }, used: {} }, payments: [] });
   respond('GET /jobs?limite=10', []);
   respond('GET /jobs?limite=100', []);
   for (const role of ['company', 'professional', 'admin']) {
@@ -68,6 +71,54 @@ beforeEach(() => {
   }
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+describe('Operaciones de agentes conectadas a API', () => {
+  it('empresa no consulta endpoints administrativos al abrir Marketing por URL', async () => {
+    respond('GET /support/sessions', []);
+    openPage('/operations/marketing');
+    expect(await screen.findByText('No hay conversaciones guardadas.')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Marketing' })).toBeNull();
+    expect(requested()).not.toContain('GET /marketing');
+  });
+  it('admin puede abrir Marketing sin despachar ninguna campana', async () => {
+    respond('GET /marketing', []);
+    openPage('/operations/marketing','admin');
+    await screen.findByRole('heading', { name: 'Campanas' });
+    await waitFor(() => expect(requested()).toContain('GET /marketing'));
+    expect(requested().every(path => path.startsWith('GET '))).toBe(true);
+  });
+  it('guarda preferencias con consentimiento declarado y sin UID enviado', async () => {
+    respond('GET /sales/me', null); respond('PUT /sales/me', { id: 'account-1' });
+    openPage('/operations/sales');
+    const save = await screen.findByRole('button', { name: 'Guardar preferencias' });
+    await waitFor(() => expect(save.hasAttribute('disabled')).toBe(false));
+    fireEvent.change(screen.getByLabelText('Que necesitas resolver'), { target: { value: 'Quiero reparar un tablero' } });
+    fireEvent.click(save);
+    await waitFor(() => expect(requested()).toContain('PUT /sales/me'));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/sales/me') && init?.method === 'PUT');
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ need: 'Quiero reparar un tablero', expectedMonthlyVolume: 1, consent: false });
+  });
+  it('no habilita guardado de memoria sin consentimiento y muestra errores de red', async () => {
+    handlers.set('GET /knowledge?scope=private', () => new Response(JSON.stringify({ mensaje: 'Servicio temporalmente no disponible' }), { status: 503 }));
+    openPage('/operations/knowledge');
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Guardar' }).hasAttribute('disabled')).toBe(true);
+    expect(requested()).not.toContain('POST /knowledge');
+  });
+  it('crea y continua soporte con version y clave idempotente del mensaje', async () => {
+    const record = { id: 'session-a', ownerId: 'account-1', resource: null, status: 'open', messages: [], version: 1,
+      createdAt: '2026-09-27T00:00:00Z', updatedAt: '2026-09-27T00:00:00Z' };
+    respond('GET /support/sessions', []); respond('POST /support/sessions', record);
+    respond('GET /support/sessions/session-a', record); respond('POST /support/sessions/session-a/messages', record);
+    openPage('/operations/support');
+    fireEvent.click(await screen.findByRole('button', { name: 'Nueva conversacion' }));
+    fireEvent.change(await screen.findByLabelText('Mensaje'), { target: { value: 'Necesito ayuda' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+    await waitFor(() => expect(requested()).toContain('POST /support/sessions/session-a/messages'));
+    const request = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/messages'));
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({ message: 'Necesito ayuda', version: 1, requestId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+  });
+});
 
 describe('Pantallas conectadas a la API', () => {
   it.each([['empresa', 'company'], ['profesional', 'professional'], ['admin', 'admin']] as const)(
@@ -317,10 +368,56 @@ describe('Pantallas conectadas a la API', () => {
 
   it('muestra el plan real sin deducirlo del rol ni renovar desde el navegador', async () => {
     respond('GET /subscriptions/me', { id: 'subscription-1', plan: 'profesional', estado: 'activa', renovacionAutomatica: true });
-    respond('GET /subscriptions/plans', []);
+    respond('GET /subscriptions/plans?audience=profesional', []);
     respond('GET /subscriptions/history', { eventos: [] });
     openPage('/subscriptions', 'profesional');
     expect(await screen.findByText(/Renovacion automatica: si/)).toBeTruthy();
     expect(requested().every(path => path.startsWith('GET '))).toBe(true);
+  });
+
+  it('muestra precios USD y no compra antes de confirmar las condiciones', async () => {
+    respond('GET /subscriptions/plans?audience=empresa', [{ id: 'empresa', audience: 'empresa', nombre: 'BUSINESS',
+      priceUsd: 35, precioMensual: 35000, moneda: 'ARS', available: true,
+      limitesEmpresa: { trabajosPublicados: 10 }, limitesProfesional: {} }]);
+    respond('GET /subscriptions/history', { eventos: [] });
+    respond('POST /subscriptions/checkout', { checkout: { estado: 'configuracion_pendiente' } });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    openPage('/subscriptions');
+    expect(await screen.findByText(/US\$ 35/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir BUSINESS' }));
+    expect(requested()).not.toContain('POST /subscriptions/checkout');
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir BUSINESS' }));
+    await waitFor(() => expect(requested()).toContain('POST /subscriptions/checkout'));
+    const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/subscriptions/checkout'));
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ plan: 'empresa' });
+    expect(String(call?.[1]?.body)).not.toContain('35000');
+    confirm.mockRestore();
+  });
+
+  it('no permite contratar un plan sin conversion o proveedor configurado', async () => {
+    respond('GET /subscriptions/plans?audience=empresa', [{ id: 'empresa', audience: 'empresa', nombre: 'BUSINESS',
+      priceUsd: 35, precioMensual: null, moneda: 'ARS', available: false,
+      limitesEmpresa: { trabajosPublicados: 10 }, limitesProfesional: {} }]);
+    respond('GET /subscriptions/history', { eventos: [] });
+    openPage('/subscriptions');
+    expect(await screen.findByText('Importe local pendiente de configuracion')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Contratacion no disponible' }).hasAttribute('disabled')).toBe(true);
+    expect(requested().every(path => path.startsWith('GET '))).toBe(true);
+  });
+
+  it('cancelar exige consentimiento y solo pide detener futuros debitos', async () => {
+    respond('GET /subscriptions/plans?audience=empresa', []);
+    respond('GET /subscriptions/history', { eventos: [] });
+    respond('GET /subscriptions/me', { id: 'sub-active', plan: 'empresa', estado: 'activa', renovacionAutomatica: true });
+    respond('POST /subscriptions/sub-active/cancel', {});
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    openPage('/subscriptions'); fireEvent.click(await screen.findByRole('button', { name: 'Cancelar renovacion' }));
+    expect(requested()).not.toContain('POST /subscriptions/sub-active/cancel');
+    confirm.mockReturnValue(true); fireEvent.click(screen.getByRole('button', { name: 'Cancelar renovacion' }));
+    await screen.findByText('Renovacion cancelada; conservas el periodo pagado.');
+    const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/subscriptions/sub-active/cancel'));
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ cancelarAlFinalDelPeriodo: true });
+    confirm.mockRestore();
   });
 });

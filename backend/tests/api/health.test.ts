@@ -5,6 +5,8 @@
 import type { Server } from 'http';
 import type { Application } from 'express';
 
+jest.mock('firebase-admin/auth', () => ({ getAuth: jest.fn() }));
+
 let app: Application;
 let server: Server | null = null;
 let baseUrl = '';

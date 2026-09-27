@@ -1,7 +1,7 @@
 /**
  * @archivo ai.service.ts
  * @descripcion Servicio de aplicación para las capacidades de Inteligencia Artificial de OfiAI.
- * Coordina agentes, herramientas de reglas, Firestore y Gemini opcional para matching, clasificación, pricing y chat.
+ * Coordina agentes, reglas, Firestore y proveedores IA opcionales para matching, clasificación, pricing y chat.
  * @modulo Services
  */
 
@@ -19,7 +19,8 @@ import { supportAgent } from '../ai/agents/support.agent';
 import { ResultadoRankingProfesional } from '../ai/tools/ranking.tool';
 import { ResultadoClasificacionSolicitud } from '../ai/tools/classification.tool';
 import { crearPromptChatSoporte, crearPromptRankingGemini } from '../ai/prompts/ofiai.prompts';
-import { geminiClient } from '../integrations/gemini';
+import { geminiClient, type RespuestaGemini } from '../integrations/gemini';
+import { GeminiIntakeError } from '../integrations/gemini/gemini.client';
 import { logger } from '../config/logger';
 
 export interface EntradaTrabajoIA {
@@ -48,8 +49,9 @@ export interface ResultadoMatchingIA {
   trabajo: Pick<Trabajo, 'id' | 'titulo' | 'categoria' | 'subcategoria' | 'ciudad' | 'tipoTrabajo'>;
   ranking: ResultadoRankingProfesional[];
   recomendaciones: string[];
-  motor: 'reglas' | 'reglas_gemini';
+  motor: 'reglas' | 'reglas_gemini' | 'reglas_deepseek' | 'reglas_groq';
   mejoraGemini?: string;
+  mejoraProveedor?: RespuestaGemini['proveedor'];
 }
 
 export interface EntradaClasificacionIA {
@@ -65,7 +67,7 @@ export interface EntradaChatIA {
 }
 
 export interface ResultadoChatIA {
-  proveedor: 'reglas' | 'gemini';
+  proveedor: 'reglas' | RespuestaGemini['proveedor'];
   respuesta: string;
   accionesSugeridas: string[];
 }
@@ -85,10 +87,10 @@ class AiService {
     const profesionales = await this.obtenerProfesionalesCandidatos();
     const ranking = matchingAgent.recomendarProfesionales(trabajo, profesionales, limite);
     const recomendaciones = ranking.map((resultado) => resultado.profesional.id);
-    let mejoraGemini: string | undefined;
+    let mejora: Pick<RespuestaGemini, 'texto' | 'proveedor'> | undefined;
 
     if (entrada.usarGemini && geminiClient.estaDisponible() && ranking.length > 0) {
-      mejoraGemini = await this.obtenerMejoraGeminiRanking(trabajo, ranking);
+      mejora = await this.obtenerMejoraGeminiRanking(trabajo, ranking);
     }
 
     if (entrada.trabajoId) {
@@ -110,8 +112,9 @@ class AiService {
       },
       ranking,
       recomendaciones,
-      motor: mejoraGemini ? 'reglas_gemini' : 'reglas',
-      mejoraGemini,
+      motor: mejora ? `reglas_${mejora.proveedor}` : 'reglas',
+      mejoraGemini: mejora?.texto,
+      mejoraProveedor: mejora?.proveedor,
     };
   }
 
@@ -145,26 +148,27 @@ class AiService {
   }
 
   /**
-   * Ejecuta chat IA con Gemini opcional y fallback por reglas.
+   * Ejecuta chat mediante el proveedor habilitado y conserva fallback por reglas.
    */
   async chatear(entrada: EntradaChatIA, usuarioId: string, rol: RolUsuario): Promise<ResultadoChatIA> {
     if (!entrada.mensaje?.trim()) {
       throw new ApiError('El mensaje es obligatorio para usar el chat IA.', 400);
     }
 
-    if (entrada.usarGemini && geminiClient.estaDisponible()) {
+    if (entrada.usarGemini !== false && geminiClient.estaDisponible()) {
       const prompt = crearPromptChatSoporte(entrada.mensaje, {
         rolUsuario: rol,
         nombreUsuario: usuarioId,
         contexto: entrada.contexto,
       });
-      const respuesta = await geminiClient.generarTexto({ prompt, temperatura: 0.3, maxTokens: 700 });
-
-      return {
-        proveedor: 'gemini',
-        respuesta: respuesta.texto,
-        accionesSugeridas: ['Revisar recomendación', 'Guardar contexto', 'Continuar conversación'],
-      };
+      try {
+        const respuesta = await geminiClient.generarTexto({ prompt, temperatura: 0.3, maxTokens: 700 });
+        return { proveedor: respuesta.proveedor, respuesta: respuesta.texto,
+          accionesSugeridas: ['Revisar recomendación', 'Guardar contexto', 'Continuar conversación'] };
+      } catch (error) {
+        logger.warn('Proveedores IA no disponibles para chat; se usan reglas.',
+          { reason: error instanceof GeminiIntakeError ? error.reason : 'unavailable' });
+      }
     }
 
     const respuestaReglas = supportAgent.responder({
@@ -272,15 +276,16 @@ class AiService {
   }
 
   /**
-   * Invoca Gemini para explicar ranking sin reemplazar el cálculo determinístico.
+   * Explica el ranking mediante IA sin reemplazar el cálculo determinístico.
    */
-  private async obtenerMejoraGeminiRanking(trabajo: Trabajo, ranking: ResultadoRankingProfesional[]): Promise<string | undefined> {
+  private async obtenerMejoraGeminiRanking(trabajo: Trabajo, ranking: ResultadoRankingProfesional[]): Promise<Pick<RespuestaGemini, 'texto' | 'proveedor'> | undefined> {
     try {
       const prompt = crearPromptRankingGemini(trabajo, ranking);
       const respuesta = await geminiClient.generarTexto({ prompt, temperatura: 0.2, maxTokens: 900 });
-      return respuesta.texto;
+      return { texto: respuesta.texto, proveedor: respuesta.proveedor };
     } catch (error) {
-      logger.warn('Gemini no pudo mejorar el ranking; se mantiene resultado por reglas.', { error });
+      logger.warn('Los proveedores IA no pudieron mejorar el ranking; se mantienen reglas.',
+        { reason: error instanceof GeminiIntakeError ? error.reason : 'unavailable' });
       return undefined;
     }
   }

@@ -39,6 +39,10 @@ import { useThemeMobile } from '../providers/theme';
 import { IntakeScreen } from './IntakeScreen';
 import { JobMatchesScreen } from './JobMatchesScreen';
 import { JobPricingScreen } from './JobPricingScreen';
+import { CoordinatorScreen } from './CoordinatorScreen';
+import { JobCoordinatorScreen } from './JobCoordinatorScreen';
+import { SubscriptionsScreen } from './SubscriptionsScreen';
+import { AgentOperationsScreen } from './AgentOperationsScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabParamList>();
@@ -116,10 +120,14 @@ function AuthenticatedTabs() {
       <Tabs.Screen name="Analytics" component={AnalyticsScreen} options={{ tabBarItemStyle: { display: 'none' } }} />
       {usuario?.rol === 'admin' && <Tabs.Screen name="Admin" component={AdminScreen} options={{ tabBarItemStyle: { display: 'none' } }} />}
       <Tabs.Screen name="Trabajos" component={JobsScreen} />
+      {(usuario?.rol === 'empresa' || usuario?.rol === 'profesional') && <Tabs.Screen name="Coordinator" component={CoordinatorScreen} options={{ title: 'Coordinacion', tabBarItemStyle: { display: 'none' } }} />}
+      {(usuario?.rol === 'empresa' || usuario?.rol === 'profesional') && <Tabs.Screen name="JobCoordinator" component={JobCoordinatorScreen} options={{ title: 'Acuerdo', tabBarItemStyle: { display: 'none' } }} />}
       {usuario?.rol === 'empresa' && <Tabs.Screen name="SolicitudIA" component={IntakeScreen} options={{ title: 'Solicitud IA', tabBarItemStyle: { display: 'none' } }} />}
       {usuario?.rol === 'empresa' && <Tabs.Screen name="JobMatches" component={JobMatchesScreen} options={{ title: 'Candidatos', tabBarItemStyle: { display: 'none' } }} />}
       {usuario?.rol === 'empresa' && <Tabs.Screen name="JobPricing" component={JobPricingScreen} options={{ title: 'Estimacion', tabBarItemStyle: { display: 'none' } }} />}
       <Tabs.Screen name="Perfil" component={ProfileScreen} />
+      <Tabs.Screen name="Suscripciones" component={SubscriptionsScreen} options={{ tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="Operaciones" component={AgentOperationsScreen} options={{ tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="IA" component={AiScreen} />
       <Tabs.Screen name="Notificaciones" component={NotificationsScreen} />
       <Tabs.Screen name="Configuracion" component={SettingsScreen} options={{ title: 'Config' }} />
@@ -306,6 +314,7 @@ function DashboardScreen() {
       <MetricCard key={key} label={metricLabel(key)} value={typeof value === 'boolean' ? (value ? 'Si' : 'No') : String(value)} detail="" />)}</View>
     <SecondaryButton label="Profesionales" onPress={() => navigation.navigate('Profesionales')} />
     <SecondaryButton label="Analytics" onPress={() => navigation.navigate('Analytics')} />
+    {(usuario?.rol === 'empresa' || usuario?.rol === 'profesional') && <SecondaryButton label="Coordinaciones" onPress={() => navigation.navigate('Coordinator')} />}
     {usuario?.rol === 'admin' && <SecondaryButton label="Administracion" onPress={() => navigation.navigate('Admin')} />}
     <Section title="Actividad reciente">
       {resource.data?.actividadReciente.length === 0 && <Text>Sin actividad reciente.</Text>}
@@ -341,6 +350,7 @@ function JobsScreen() {
   }
   return <ScreenContainer>
     <Text style={styles.title}>Trabajos</Text>
+    {(usuario?.rol === 'empresa' || usuario?.rol === 'profesional') && <SecondaryButton label="Bandeja de coordinaciones" onPress={() => navigation.navigate('Coordinator')} />}
     {usuario?.rol === 'empresa' && <PrimaryButton label="Crear solicitud con IA" onPress={() => navigation.navigate('SolicitudIA')} />}
     {usuario?.rol === 'empresa' && <Section title="Publicar trabajo">
       <Field label="Titulo" value={titulo} onChangeText={setTitulo} />
@@ -364,10 +374,12 @@ function JobsScreen() {
 
 /** Obtiene el perfil y la suscripcion actual del usuario. */
 function ProfileScreen() {
+  const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
   const account = useMobileResource<AccountData>('/auth/me');
   const subscription = useMobileResource<SubscriptionData | null>('/subscriptions/me');
   return <ScreenContainer>
     <Text style={styles.title}>Perfil</Text>
+    <PrimaryButton label="Operaciones, soporte y agentes" onPress={() => navigation.navigate('Operaciones')} />
     <ResourceState resource={account} />
     {account.data && <Section title="Cuenta">
       <ListRow title="Nombre" description={`${account.data.usuario.nombre} ${account.data.usuario.apellido ?? ''}`} />
@@ -375,6 +387,7 @@ function ProfileScreen() {
       <ListRow title="Rol" description={account.data.usuario.rol} />
     </Section>}
     <Section title="Suscripcion">
+      <PrimaryButton label="Planes y facturacion" onPress={() => navigation.navigate('Suscripciones')} />
       <ResourceState resource={subscription} />
       {subscription.data && <ListRow title={subscription.data.plan} description={subscription.data.estado} badge={subscription.data.renovacionAutomatica ? 'Renovacion mensual' : 'Sin renovacion'} />}
       {subscription.data === null && <Text>Sin suscripcion activa.</Text>}

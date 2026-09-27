@@ -16,6 +16,7 @@ jest.mock('firebase-admin/app', () => ({
 jest.mock('firebase-admin/firestore', () => ({
   getFirestore: jest.fn(() => ({ settings: jest.fn() })),
 }));
+jest.mock('firebase-admin/auth', () => ({ getAuth: jest.fn() }));
 
 it('selecciona default sin parentesis y conserva la inicializacion unica', () => {
   const first = getFirestore();

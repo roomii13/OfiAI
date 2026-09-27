@@ -6,7 +6,7 @@
 export type RolUsuario = 'empresa' | 'profesional' | 'admin';
 export type EstadoTrabajo = 'borrador' | 'publicado' | 'en_revision' | 'en_progreso' | 'completado' | 'cancelado';
 export type EstadoSuscripcion = 'activa' | 'cancelada' | 'vencida' | 'prueba';
-export type PlanSuscripcion = 'gratuito' | 'profesional' | 'empresa';
+export type PlanSuscripcion = import('../../../../shared/billing').BillingPlanId;
 
 export interface RespuestaAPI<T> {
   exito: boolean;

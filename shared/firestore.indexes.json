@@ -1,5 +1,29 @@
 {
   "indexes": [
+    { "collectionGroup": "support_sessions", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "ownerId", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "agent_runs", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "ownerId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "ai_knowledge", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "scopeKey", "order": "ASCENDING" }, { "fieldPath": "updatedAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "agent_events", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "state", "order": "ASCENDING" }, { "fieldPath": "availableAt", "order": "ASCENDING" } ] },
+    {
+      "collectionGroup": "subscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "usuarioId", "order": "ASCENDING" },
+        { "fieldPath": "fechaCreacion", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "billing_payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "usuarioId", "order": "ASCENDING" },
+        { "fieldPath": "paidAt", "order": "DESCENDING" }
+      ]
+    },
     {
       "collectionGroup": "companies",
       "queryScope": "COLLECTION",

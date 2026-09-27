@@ -10,6 +10,11 @@ export interface EntradaChatSoporte {
   rolUsuario: string;
   contexto?: string;
 }
+import { z } from 'zod';
+import { businessAi } from '../tools/business-ai.tool';
+import { SUPPORT_PROMPT,BUSINESS_PROMPT_VERSION } from '../prompts/business.prompts';
+import type { AgentActor } from '../../models/agent.model';
+import type { KnowledgeHit } from '../../../../shared/knowledge';
 
 export interface RespuestaChatSoporte {
   proveedor: 'reglas';
@@ -21,6 +26,29 @@ export interface RespuestaChatSoporte {
  * Agente de chat operativo con respuestas determinísticas.
  */
 class SupportAgent {
+  /** Seleccion semantica de evidencia; el texto final se cita literalmente desde fuentes aprobadas. */
+  async selectKnowledge(actor: AgentActor,question: string,hits: KnowledgeHit[],context: string): Promise<KnowledgeHit[]> {
+    if(!hits.length) return hits;
+    const schema=z.object({ids: z.array(z.string()).min(1).max(3)}).strict();
+    const result=await businessAi({actor,agent: 'support',promptVersion: BUSINESS_PROMPT_VERSION,system: SUPPORT_PROMPT,
+      data: {question,context: context.slice(-3000),documents: hits},schema,
+      fallback: {ids: hits.slice(0,3).map(hit=>hit.documentId)},
+      validate: data=>new Set(data.ids).size===data.ids.length && data.ids.every(id=>hits.some(hit=>hit.documentId===id)),
+      jsonSchema: {type: 'object',properties: {ids: {type: 'array',items: {type: 'string'}}},required: ['ids'],additionalProperties: false}});
+    return result.value.ids.map(id=>hits.find(hit=>hit.documentId===id)!);
+  }
+  /** Presenta exclusivamente campos proyectados por herramientas autorizadas. */
+  explainFacts(tool: string, facts: unknown): string {
+    const data = facts as Record<string, unknown>;
+    if (tool === 'getJob') return 'Trabajo: ' + data.title + '. Estado: ' + data.status
+      + '. Coordinacion: ' + (data.coordinationState ?? 'sin iniciar') + '. Fecha solicitada: ' + (data.preferredDate ?? 'no registrada') + '.';
+    if (tool === 'getSubscription') return 'Plan: ' + data.plan + '. Estado: ' + data.status
+      + '. Renovacion automatica: ' + (data.autoRenew ? 'activa' : 'desactivada') + '. Fin del periodo: ' + data.periodEnd + '.';
+    if (tool === 'getInvoice') return 'Recibo de pago ' + data.id + ': ' + data.currency + ' ' + (Number(data.amountMinor) / 100)
+      + '. Estado: ' + data.status + '. No es una factura fiscal.';
+    return 'Profesional: ' + data.name + '. Ciudad: ' + data.city + '. Disponible: ' + (data.available ? 'si' : 'no')
+      + '. Verificacion: ' + (data.verified ? 'verificado' : 'sin verificar') + '.';
+  }
   /**
    * Responde una consulta frecuente usando reglas del dominio OfiAI.
    */

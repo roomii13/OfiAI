@@ -8,6 +8,13 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { z } from 'zod';
+import { billingOverridesSchema, storeProductsSchema } from '../constants/billing';
+
+/** Valida JSON de configuracion antes de iniciar; nunca publica su contenido. */
+function jsonConfig(value: string, context: z.RefinementCtx): unknown {
+  try { return JSON.parse(value) as unknown; }
+  catch { context.addIssue({ code: 'custom', message: 'JSON de configuracion invalido.' }); return z.NEVER; }
+}
 
 // Cargar variables de entorno desde el archivo .env si está disponible
 if (process.env.NODE_ENV !== 'test') {
@@ -38,9 +45,25 @@ const envSchema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().default(''),
   FIREBASE_STORAGE_BUCKET: z.string().default(''),
 
-  // Google Gemini AI
+  // Groq principal. Proveedores anteriores conservados, deshabilitados por defecto.
+  GROQ_API_KEY: z.string().trim().default(''),
+  GROQ_MODEL: z.string().regex(/^[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)?$/).default('qwen/qwen3.8-27b'),
+  GROQ_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(30000),
+  GROQ_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(8192).default(4096),
+  GROQ_MAX_INPUT_CHARACTERS: z.coerce.number().int().min(4000).max(200000).default(60000),
+  AI_LEGACY_FALLBACK_ENABLED: z.enum(['true','false']).default('false').transform(value=>value==='true'),
   GEMINI_API_KEY: z.string().default(''),
-  GEMINI_MODEL: z.string().default('gemini-1.5-pro'),
+  AI_BUSINESS_LLM_ENABLED: z.enum(['true','false']).default('false').transform(value=>value==='true'),
+  AI_BUSINESS_DAILY_CALL_LIMIT: z.coerce.number().int().min(1).max(1000).default(20),
+  AI_COST_RATES_JSON: z.string().default('{}').transform(jsonConfig).pipe(z.object({
+    groq: z.object({inputUsdPerMillion: z.number().nonnegative(),outputUsdPerMillion: z.number().nonnegative()}).strict().optional(),
+    deepseek: z.object({inputUsdPerMillion: z.number().nonnegative(),outputUsdPerMillion: z.number().nonnegative()}).strict().optional(),
+    gemini: z.object({inputUsdPerMillion: z.number().nonnegative(),outputUsdPerMillion: z.number().nonnegative()}).strict().optional(),
+  }).strict()),
+  DEEPSEEK_API_KEY: z.string().default(''),
+  DEEPSEEK_MODEL: z.string().regex(/^[a-zA-Z0-9._-]+$/).default('deepseek-flash'),
+  DEEPSEEK_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(30000),
+  GEMINI_MODEL: z.string().default('gemini-3.6-flash'),
   GEMINI_INTAKE_MODEL: z.string().regex(/^[a-zA-Z0-9._-]+$/).default('gemini-3.6-flash'),
   GEMINI_INTAKE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(30000),
   GEMINI_MATCHING_MODEL: z.string().regex(/^[a-zA-Z0-9._-]+$/).default('gemini-3.6-flash'),
@@ -58,6 +81,10 @@ const envSchema = z.object({
   MERCADOPAGO_WEBHOOK_SECRET: z.string().default(''),
   MERCADOPAGO_CURRENCY: z.string().default('ARS'),
   MERCADOPAGO_NOTIFICATION_URL: z.string().url().optional(),
+  BILLING_USD_TO_ARS: z.preprocess(value => value === '' ? undefined : value, z.coerce.number().positive().max(1000000).optional()),
+  BILLING_CATALOG_JSON: z.string().default('{}').transform(jsonConfig).pipe(billingOverridesSchema),
+  BILLING_STORE_PRODUCTS_JSON: z.string().default('[]').transform(jsonConfig).pipe(storeProductsSchema),
+  BILLING_TRANSACTION_FEE_BPS: z.preprocess(value => value === '' ? undefined : value, z.coerce.number().int().min(0).max(10000).optional()),
 
   // Resend
   RESEND_API_KEY: z.string().default(''),
@@ -112,7 +139,6 @@ const envSchema = z.object({
     'FIREBASE_PRIVATE_KEY',
     'FIREBASE_CLIENT_EMAIL',
     'FIREBASE_STORAGE_BUCKET',
-    'GEMINI_API_KEY',
     'GOOGLE_MAPS_API_KEY',
     'MERCADOPAGO_ACCESS_TOKEN',
     'MERCADOPAGO_WEBHOOK_SECRET',
@@ -122,6 +148,11 @@ const envSchema = z.object({
     'WHATSAPP_PHONE_ID',
     'JWT_SECRET',
   ].forEach((campo) => requerir(campo as keyof typeof env));
+
+  if (!env.GROQ_API_KEY && !(env.AI_LEGACY_FALLBACK_ENABLED && (env.DEEPSEEK_API_KEY || env.GEMINI_API_KEY))) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['GROQ_API_KEY'],
+      message: 'Configura GROQ_API_KEY. Los proveedores anteriores requieren habilitacion explicita.' });
+  }
 
   if (!env.MERCADOPAGO_NOTIFICATION_URL) {
     ctx.addIssue({
@@ -186,6 +217,17 @@ const parsearEnv = () => {
  * Objeto de configuración de entorno validado y tipado.
  */
 export const env = parsearEnv();
+
+/** Identidad no secreta de proveedores; invalida caches al activar IA o cambiar modelos. */
+export function aiProviderCacheConfig() {
+  return {
+    groq: { configured: Boolean(env.GROQ_API_KEY), model: env.GROQ_MODEL },
+    legacy: env.AI_LEGACY_FALLBACK_ENABLED ? {
+      deepseek: { configured: Boolean(env.DEEPSEEK_API_KEY), model: env.DEEPSEEK_MODEL },
+      gemini: { configured: Boolean(env.GEMINI_API_KEY) },
+    } : null,
+  };
+}
 
 /**
  * Tipo inferido de la configuración de entorno.

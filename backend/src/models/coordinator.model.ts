@@ -1,7 +1,11 @@
-/** @archivo coordinator.model.ts @descripcion Contrato para la siguiente fase; no ejecuta contacto ni contratacion. */
-export type CoordinatorState = 'MATCHED' | 'PROFESSIONAL_SELECTED' | 'CONTACT_PENDING' | 'CONTACTED'
-  | 'PROFESSIONAL_RESPONDED' | 'QUOTE_REQUESTED' | 'QUOTE_RECEIVED' | 'COMPANY_REVIEW' | 'NEGOTIATION'
-  | 'SCHEDULE_PENDING' | 'SCHEDULED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED';
+/** @archivo coordinator.model.ts @descripcion Modelos del workflow y contratos de integracion entre agentes. */
+import type { CoordinatorState, CoordinatorWorkflow } from '../../../shared/coordinator';
+export type * from '../../../shared/coordinator';
+/** Referencias privadas para autorizacion e invariantes de Job. */
+export interface StoredCoordinator extends CoordinatorWorkflow {
+  companyUid: string; professionalUid: string; jobFingerprint: string; startKey: string;
+  jobSnapshot: import('../../../shared/matching').MatchingJob;
+}
 /** Referencias a evidencia inmutable que Coordinator debera revalidar antes de cada accion. */
 export interface CoordinatorHandoff {
   jobId: string; companyId: string; matchingRunId: string; pricingEstimateId: string;

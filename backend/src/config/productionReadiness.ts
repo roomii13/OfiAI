@@ -54,6 +54,12 @@ export function obtenerReadinessProduccion(): ReadinessProduccion {
       'Faltan credenciales o URL de webhook de Mercado Pago.'
     ),
     servicioConfigurado(
+      'catalogo_comercial',
+      Boolean(env.MERCADOPAGO_CURRENCY === 'ARS' && env.BILLING_USD_TO_ARS),
+      'Precio local configurado; los contratos anteriores conservan su importe.',
+      'Falta definir BILLING_USD_TO_ARS para contratar los nuevos planes.'
+    ),
+    servicioConfigurado(
       'resend',
       Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL),
       'Resend configurado para email.',
@@ -66,10 +72,11 @@ export function obtenerReadinessProduccion(): ReadinessProduccion {
       'Faltan credenciales WhatsApp.'
     ),
     servicioConfigurado(
-      'gemini',
-      Boolean(env.GEMINI_API_KEY),
-      'Gemini configurado.',
-      'Falta GEMINI_API_KEY.'
+      'ia_externa',
+      Boolean(env.GROQ_API_KEY || (env.AI_LEGACY_FALLBACK_ENABLED && (env.DEEPSEEK_API_KEY || env.GEMINI_API_KEY))),
+      env.GROQ_API_KEY ? 'Groq configurado; no se verifico plan Free, cuota ni conectividad.'
+        : 'Proveedor anterior habilitado explicitamente; no se verifico cuota ni conectividad.',
+      'Falta GROQ_API_KEY. El fallback a proveedores anteriores esta deshabilitado por defecto.'
     ),
     servicioConfigurado(
       'google_maps',
