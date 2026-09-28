@@ -6,7 +6,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { getIdToken, signInWithCustomToken, signOut } from 'firebase/auth';
+import { getIdToken, onIdTokenChanged, signInWithCustomToken, signOut } from 'firebase/auth';
 import { DEMO_ACCESS_ENABLED } from '../constants';
 import { apiMobile, setApiMobileToken } from '../lib/api';
 import { firebaseAuthMobile } from '../lib/firebase';
@@ -72,7 +72,7 @@ interface BackendAuthPayload {
 
 interface StoredSession {
   usuario: UsuarioMobile;
-  token: string | null;
+  token?: string | null;
 }
 
 /**
@@ -159,29 +159,77 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
+    const auth = firebaseAuthMobile;
+
     /**
      * Restaura la sesión persistida en el dispositivo.
      */
     async function restoreSession(): Promise<void> {
       const session = await readStoredSession().catch(() => null);
 
-      if (session) {
-        setUsuario(session.usuario);
-        setToken(session.token);
-        setApiMobileToken(session.token);
+      if (auth) {
+        await auth.authStateReady();
+        const firebaseUser = auth.currentUser;
+        if (firebaseUser) {
+          const freshToken = await getIdToken(firebaseUser);
+          setToken(freshToken);
+          setApiMobileToken(freshToken);
+          const cachedUser = session?.usuario.uid === firebaseUser.uid ? session.usuario : null;
+          if (cachedUser) setUsuario(cachedUser);
+
+          try {
+            const profile = unwrap(await apiMobile.get<ApiEnvelope<{ usuario: BackendUsuario }>>('/auth/me', freshToken));
+            if (profile.usuario.id !== firebaseUser.uid) throw new Error('La sesión no coincide con el perfil del servidor.');
+            const usuario = normalizeUsuario(profile.usuario);
+            setUsuario(usuario);
+            await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify({ usuario } satisfies StoredSession));
+          } catch {
+            if (!cachedUser) throw new Error('No se pudo recuperar el perfil de la sesión.');
+          }
+          return;
+        }
       }
 
-      setCargando(false);
+      const demoToken = session?.token;
+      if (session && typeof demoToken === 'string' && demoToken.startsWith('demo-token-') && DEMO_ACCESS_ENABLED) {
+        setUsuario(session.usuario);
+        setToken(demoToken);
+        setApiMobileToken(demoToken);
+        return;
+      }
+
+      await SecureStore.deleteItemAsync(STORAGE_KEY).catch(() => undefined);
+      setApiMobileToken(null);
     }
 
-    void restoreSession();
+    const unsubscribe = auth ? onIdTokenChanged(auth, user => {
+      if (!user) return;
+      void getIdToken(user).then(freshToken => {
+        if (auth.currentUser?.uid !== user.uid) return;
+        setToken(freshToken);
+        setApiMobileToken(freshToken);
+      }).catch(() => undefined);
+    }) : undefined;
+
+    void restoreSession().catch(() => {
+      setUsuario(null);
+      setToken(null);
+      setApiMobileToken(null);
+    }).finally(() => {
+      setCargando(false);
+    });
+
+    return () => unsubscribe?.();
   }, []);
 
   const commitSession = useCallback(async (session: StoredSession): Promise<void> => {
     setUsuario(session.usuario);
-    setToken(session.token);
-    setApiMobileToken(session.token);
-    await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(session));
+    setToken(session.token ?? null);
+    setApiMobileToken(session.token ?? null);
+    const persisted: StoredSession = session.token?.startsWith('demo-token-')
+      ? session
+      : { usuario: session.usuario };
+    await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(persisted));
   }, []);
 
   const iniciarSesion = useCallback(async (email: string, password: string): Promise<void> => {

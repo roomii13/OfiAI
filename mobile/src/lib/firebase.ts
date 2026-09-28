@@ -5,8 +5,14 @@
  * @modulo Mobile Lib
  */
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import * as FirebaseAuth from 'firebase/auth';
+import type { Auth, Persistence } from '@firebase/auth';
 import { FIREBASE_CONFIG } from '../constants';
+import { firebaseAuthStorage } from './firebasePersistence';
+
+const firebaseAuthNative = FirebaseAuth as typeof FirebaseAuth & {
+  getReactNativePersistence(storage: typeof firebaseAuthStorage): Persistence;
+};
 
 /**
  * Indica si el entorno móvil tiene la configuración pública mínima de Firebase.
@@ -32,4 +38,9 @@ function createMobileFirebaseApp(): FirebaseApp | null {
 }
 
 export const firebaseAppMobile: FirebaseApp | null = createMobileFirebaseApp();
-export const firebaseAuthMobile: Auth | null = firebaseAppMobile ? getAuth(firebaseAppMobile) : null;
+/** Auth conserva refresh tokens cifrados por el almacenamiento nativo, no en memoria. */
+export const firebaseAuthMobile: Auth | null = firebaseAppMobile
+  ? firebaseAuthNative.initializeAuth(firebaseAppMobile, {
+    persistence: firebaseAuthNative.getReactNativePersistence(firebaseAuthStorage),
+  })
+  : null;
