@@ -54,7 +54,7 @@ function stopServer(): Promise<void> {
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
-  process.env.TRUST_PROXY_HOPS = '1';
+  process.env.TRUST_PROXY_HOPS = '3';
   process.env.JWT_SECRET = 'ofiai-test-jwt-secret-key-2026';
   process.env.MERCADOPAGO_NOTIFICATION_URL = 'https://ofiai.local/webhooks/mercadopago';
   const appModule = await import('../../src/app');
@@ -68,10 +68,10 @@ afterAll(async () => {
 });
 
 describe('GET /api/v1/health/liveness', () => {
-  it('confia en un solo proxy y no en el primer valor arbitrario de X-Forwarded-For', async () => {
-    expect(app.get('trust proxy')).toBe(1);
+  it('confia solo en los tres saltos configurados, no en el primer valor arbitrario de X-Forwarded-For', async () => {
+    expect(app.get('trust proxy')).toBe(3);
     const response = await fetch(`${baseUrl}/__test/client-ip`, {
-      headers: { 'X-Forwarded-For': '198.51.100.99, 203.0.113.10' },
+      headers: { 'X-Forwarded-For': '198.51.100.99, 203.0.113.10, 172.64.205.138, 10.25.145.231' },
     });
     expect(await response.json()).toEqual({ ip: '203.0.113.10' });
   });

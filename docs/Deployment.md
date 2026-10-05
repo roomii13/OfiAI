@@ -15,11 +15,16 @@ de la API es Render Free. La validacion del entorno final sigue siendo necesaria
   suspende instancias inactivas y el proveedor desaconseja ese plan para produccion.
 - Render CLI y acceso al repositorio privado autorizados. Servicio `ofiai-api`
   creado en el plan `free`: `https://ofiai-api.onrender.com`.
-- La creacion del servicio no confirma un despliegue saludable. Consultar liveness,
-  readiness, logs y flujos autenticados antes de habilitar trafico de usuarios.
+- Backend desplegado y verificado por HTTPS: liveness 200, readiness 200 degradado
+  solo por WhatsApp, `/auth/me` sin token 401 y webhook sin firma 401.
+- Se cargaron 36 variables protegidas en Render, sin publicar secretos en GitHub.
+- `ofiai.pages.dev/login` responde 200 y su bundle apunta a la API de Render, no
+  a localhost. Firebase Authentication ya autoriza `ofiai.pages.dev`.
+- Lectura minima de Firestore verificada con la cuenta de servicio y la base `default`.
+- Falta validar login interactivo y entrega real del webhook desde Mercado Pago.
 - No se realizaron cobros de prueba.
-- Verificacion local tras retirar el experimento: `tsc --noEmit` y 298 tests
-  en 27 suites correctos. Esto no valida un despliegue ni operaciones reales de pago.
+- Verificacion local del ajuste de Render: build TypeScript y 311 tests en 28 suites
+  correctos. No equivale a validar operaciones reales de pago ni dispositivos moviles.
 
 Referencias: [Cloud Run](https://cloud.google.com/run/pricing),
 [requisitos de la cuota gratuita](https://docs.cloud.google.com/free/docs/free-cloud-features),
@@ -42,7 +47,7 @@ sin subir ese archivo al repositorio. Configuracion especifica:
 ```dotenv
 NODE_ENV=production
 CORS_ORIGINS=https://ofiai.pages.dev
-TRUST_PROXY_HOPS=1
+TRUST_PROXY_HOPS=3
 FIREBASE_DATABASE_ID=default
 MERCADOPAGO_NOTIFICATION_URL=https://ofiai-api.onrender.com/api/v1/subscriptions/webhooks/mercadopago
 WHATSAPP_TOKEN=
@@ -51,12 +56,13 @@ WHATSAPP_PHONE_ID=
 
 WhatsApp queda no disponible hasta completar ambas credenciales reales. No usar
 valores de ejemplo para forzar un readiness saludable. El resto de los proveedores
-conserva sus validaciones obligatorias. Verificar en los logs que Render utiliza
-la IP del cliente, no una IP interna ni una cabecera falsificada.
+conserva sus validaciones obligatorias. En este servicio se verificaron tres saltos:
+con uno se observaba una IP interna; con dos, la de Cloudflare; con tres, la IP real.
+Solicitudes normales y con `X-Forwarded-For` falsificado conservaron la misma IP
+de cliente. Revalidar al cambiar dominio, proveedor o topologia de proxies.
 
-Cloudflare Pages necesita `VITE_API_URL=https://ofiai-api.onrender.com/api/v1`
-y `VITE_ENABLE_DEMO_ACCESS=false`, seguidos de un nuevo build. Registrar
-`ofiai.pages.dev` como dominio autorizado en Firebase Authentication.
+Cloudflare Pages tiene `VITE_API_URL=https://ofiai-api.onrender.com/api/v1`
+y `VITE_ENABLE_DEMO_ACCESS=false`. El nuevo bundle publico fue verificado por HTTP.
 
 El webhook publico tambien debe configurarse en la aplicacion de Mercado Pago.
 Publicar la URL no valida la firma, la entrega ni un ciclo de cobro real.
