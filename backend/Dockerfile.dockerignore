@@ -1,0 +1,15 @@
+# @archivo Dockerfile.dockerignore
+# Contexto minimo: no enviar secretos, credenciales ni aplicaciones cliente.
+**
+!backend/
+!backend/package.json
+!backend/package-lock.json
+!backend/tsconfig.json
+!backend/src/
+!backend/src/**
+!shared/
+!shared/*.d.ts
+**/.env*
+**/*.pem
+**/*firebase-adminsdk*.json
+**/*service-account*.json

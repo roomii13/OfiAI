@@ -4,11 +4,11 @@
  * Sincronizado con Firebase Auth y el backend.
  * @modulo Mobile Context
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { getIdToken, onIdTokenChanged, signInWithCustomToken, signOut } from 'firebase/auth';
 import { DEMO_ACCESS_ENABLED } from '../constants';
-import { apiMobile, setApiMobileToken } from '../lib/api';
+import { ApiMobileError, apiMobile, isSessionRejected, onApiMobileSessionInvalidated, setApiMobileToken } from '../lib/api';
 import { firebaseAuthMobile } from '../lib/firebase';
 import type { ApiEnvelope, RolUsuario, UsuarioMobile } from '../types';
 
@@ -120,9 +120,9 @@ function buildDemoSession(rol: RolUsuario): StoredSession {
 /**
  * Intercambia un custom token de Firebase por un ID token aceptado por el backend.
  */
-async function resolveSessionToken(customToken?: string): Promise<string | null> {
+async function resolveSessionToken(customToken?: string): Promise<string> {
   if (!customToken) {
-    return null;
+    throw new Error('No se pudo completar la sesion. Intenta ingresar nuevamente.');
   }
 
   if (!firebaseAuthMobile) {
@@ -157,34 +157,77 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
   const [usuario, setUsuario] = useState<UsuarioMobile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  const sessionVersion = useRef(0);
+  const firebaseUid = useRef<string | null>(null);
+  const storageQueue = useRef<Promise<void>>(Promise.resolve());
+
+  /** Serializa escrituras para que una restauracion tardia no persista un perfil cerrado. */
+  const persistSession = useCallback((session: StoredSession | null): Promise<void> => {
+    const pending = storageQueue.current.catch(() => undefined).then(async () => {
+      if (!session) {
+        await SecureStore.deleteItemAsync(STORAGE_KEY);
+        return;
+      }
+      const persisted = session.token?.startsWith('demo-token-') ? session : { usuario: session.usuario };
+      await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(persisted));
+    });
+    storageQueue.current = pending;
+    return pending;
+  }, []);
+
+  /** Cierra inmediatamente la UI; la limpieza local no depende de la API remota. */
+  const clearSession = useCallback(async (): Promise<void> => {
+    sessionVersion.current += 1;
+    firebaseUid.current = null;
+    setUsuario(null);
+    setToken(null);
+    setApiMobileToken(null);
+    setCargando(false);
+    const removeProfile = persistSession(null);
+    const firebaseSignOut = firebaseAuthMobile ? signOut(firebaseAuthMobile) : Promise.resolve();
+    await Promise.all([removeProfile, firebaseSignOut]);
+  }, [persistSession]);
 
   useEffect(() => {
     const auth = firebaseAuthMobile;
+    let mounted = true;
+    const version = sessionVersion.current;
+
+    /** Evita que respuestas anteriores al logout restauren la sesion. */
+    const isCurrent = (): boolean => mounted && version === sessionVersion.current;
 
     /**
      * Restaura la sesión persistida en el dispositivo.
      */
     async function restoreSession(): Promise<void> {
       const session = await readStoredSession().catch(() => null);
+      if (!isCurrent()) return;
 
       if (auth) {
         await auth.authStateReady();
+        if (!isCurrent()) return;
         const firebaseUser = auth.currentUser;
         if (firebaseUser) {
+          firebaseUid.current = firebaseUser.uid;
           const freshToken = await getIdToken(firebaseUser);
+          if (!isCurrent() || auth.currentUser?.uid !== firebaseUser.uid) return;
           setToken(freshToken);
           setApiMobileToken(freshToken);
           const cachedUser = session?.usuario.uid === firebaseUser.uid ? session.usuario : null;
-          if (cachedUser) setUsuario(cachedUser);
 
           try {
             const profile = unwrap(await apiMobile.get<ApiEnvelope<{ usuario: BackendUsuario }>>('/auth/me', freshToken));
-            if (profile.usuario.id !== firebaseUser.uid) throw new Error('La sesión no coincide con el perfil del servidor.');
+            if (!isCurrent() || auth.currentUser?.uid !== firebaseUser.uid) return;
+            if (profile.usuario.id !== firebaseUser.uid) throw new ApiMobileError('La sesion no coincide con el perfil.', 403);
             const usuario = normalizeUsuario(profile.usuario);
             setUsuario(usuario);
-            await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify({ usuario } satisfies StoredSession));
-          } catch {
-            if (!cachedUser) throw new Error('No se pudo recuperar el perfil de la sesión.');
+            await persistSession({ usuario });
+          } catch (error) {
+            if (!isCurrent()) return;
+            const transient = error instanceof TypeError ||
+              (error instanceof ApiMobileError && (error.status === 0 || error.status >= 500));
+            if (isSessionRejected(error) || !transient || !cachedUser) throw error;
+            setUsuario(cachedUser);
           }
           return;
         }
@@ -198,39 +241,50 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      await SecureStore.deleteItemAsync(STORAGE_KEY).catch(() => undefined);
+      await persistSession(null);
       setApiMobileToken(null);
     }
 
     const unsubscribe = auth ? onIdTokenChanged(auth, user => {
-      if (!user) return;
+      if (!user) {
+        if (firebaseUid.current && !auth.currentUser) void clearSession().catch(() => undefined);
+        return;
+      }
+      if (firebaseUid.current !== user.uid) return;
+      const refreshVersion = sessionVersion.current;
       void getIdToken(user).then(freshToken => {
-        if (auth.currentUser?.uid !== user.uid) return;
+        if (!mounted || refreshVersion !== sessionVersion.current || auth.currentUser?.uid !== user.uid) return;
         setToken(freshToken);
         setApiMobileToken(freshToken);
-      }).catch(() => undefined);
+      }).catch(error => {
+        if (mounted && refreshVersion === sessionVersion.current && isSessionRejected(error)) {
+          void clearSession().catch(() => undefined);
+        }
+      });
     }) : undefined;
+    const unsubscribeApi = onApiMobileSessionInvalidated(() => { void clearSession().catch(() => undefined); });
 
-    void restoreSession().catch(() => {
-      setUsuario(null);
-      setToken(null);
-      setApiMobileToken(null);
+    void restoreSession().catch(async () => {
+      if (isCurrent()) await clearSession().catch(() => undefined);
     }).finally(() => {
-      setCargando(false);
+      if (isCurrent()) setCargando(false);
     });
 
-    return () => unsubscribe?.();
-  }, []);
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+      unsubscribeApi();
+    };
+  }, [clearSession, persistSession]);
 
   const commitSession = useCallback(async (session: StoredSession): Promise<void> => {
+    sessionVersion.current += 1;
+    firebaseUid.current = session.token?.startsWith('demo-token-') ? null : session.usuario.uid;
     setUsuario(session.usuario);
     setToken(session.token ?? null);
     setApiMobileToken(session.token ?? null);
-    const persisted: StoredSession = session.token?.startsWith('demo-token-')
-      ? session
-      : { usuario: session.usuario };
-    await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(persisted));
-  }, []);
+    await persistSession(session);
+  }, [persistSession]);
 
   const iniciarSesion = useCallback(async (email: string, password: string): Promise<void> => {
     setCargando(true);
@@ -293,18 +347,14 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const cerrarSesion = useCallback(async (): Promise<void> => {
-    if (token) {
-      await apiMobile.post<ApiEnvelope<unknown>>('/auth/logout', {}, token).catch(() => undefined);
+    const logoutToken = token;
+    const cleanup = clearSession();
+    if (logoutToken && !logoutToken.startsWith('demo-token-')) {
+      // Revocacion remota acotada, sin bloquear el cierre ni usar un token posterior.
+      void apiMobile.post<ApiEnvelope<unknown>>('/auth/logout', {}, logoutToken, 5000).catch(() => undefined);
     }
-
-    setUsuario(null);
-    setToken(null);
-    setApiMobileToken(null);
-    if (firebaseAuthMobile) {
-      await signOut(firebaseAuthMobile).catch(() => undefined);
-    }
-    await SecureStore.deleteItemAsync(STORAGE_KEY);
-  }, [token]);
+    await cleanup;
+  }, [token, clearSession]);
 
   const valor = useMemo<EstadoAuthMobile>(() => ({
     usuario,

@@ -1,5 +1,8 @@
 # OfiAI - Guía de Despliegue
 
+Cloudflare es el destino acordado. Cloud Run queda como referencia historica;
+no activar cobros ni desplegar hasta validar el entorno final.
+
 ## Backend en Google Cloud Run
 
 ### Prerrequisitos
@@ -14,9 +17,8 @@
 gcloud auth login
 gcloud config set project TU_PROJECT_ID
 
-# Construir imagen Docker
-cd backend
-docker build -t gcr.io/TU_PROJECT_ID/ofiai-backend .
+# Construir desde la raiz: backend y contratos shared, sin secretos
+docker build -f backend/Dockerfile -t gcr.io/TU_PROJECT_ID/ofiai-backend .
 
 # Subir imagen al Container Registry
 docker push gcr.io/TU_PROJECT_ID/ofiai-backend

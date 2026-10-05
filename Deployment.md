@@ -70,11 +70,14 @@ Variables obligatorias en producción:
 Usar [backend/.env.example](./backend/.env.example) como plantilla. En producción no guardar secretos en el repositorio; cargarlos desde Secret Manager o el panel del proveedor.
 Cuenta de servicio base: `firebase-adminsdk-fbsvc@ofiai-2f357.iam.gserviceaccount.com`.
 
-Comandos base:
+Construccion desde la raiz del repositorio (Node 22 y contratos de `shared/`).
+No usar `backend/` como contexto. El archivo `backend/Dockerfile.dockerignore`
+excluye credenciales, archivos .env y aplicaciones cliente de la imagen.
+
+Comandos de referencia, no ejecutar deploy hasta validar el entorno final:
 
 ```bash
-cd backend
-docker build -t gcr.io/PROJECT_ID/ofiai-backend .
+docker build -f backend/Dockerfile -t gcr.io/PROJECT_ID/ofiai-backend .
 docker push gcr.io/PROJECT_ID/ofiai-backend
 gcloud run deploy ofiai-backend \
   --image gcr.io/PROJECT_ID/ofiai-backend \
