@@ -6,9 +6,19 @@ OfiAI monetiza mediante suscripciones SaaS y servicios operativos asociados al m
 
 | Plan | Precio mensual | Segmento | Capacidades |
 |---|---:|---|---|
-| Gratuito | $0 ARS | Validación inicial | Perfil activo, límites bajos, exploración |
-| Profesional | $9.900 ARS | Profesionales activos | Más propuestas, consultas IA, alertas |
-| Empresa | $39.900 ARS | Equipos contratantes | Matching IA, analytics, soporte prioritario |
+| FREE | USD 0 | Empresas y profesionales | Cuotas iniciales por segmento |
+| PRO | USD 3 | Profesionales | 50 propuestas y 50 consultas IA |
+| PRO+ | USD 59 | Profesionales | Propuestas sin limite y 150 consultas IA |
+| BUSINESS | USD 20 | Empresas | 10 trabajos y 50 consultas IA |
+| BUSINESS PRO | USD 79 | Empresas | 40 trabajos y 200 consultas IA |
+| ENTERPRISE | USD 149 | Empresas | Trabajos sin limite y 500 consultas IA |
+
+Catalogo vigente para nuevas contrataciones: `backend/src/constants/billing.ts`.
+El importe en ARS se calcula con la cotizacion de Mercado Pago, cacheada una hora.
+`BILLING_USD_TO_ARS` permite fijar opcionalmente una conversion manual.
+La fuente y fecha son visibles; si cambia el importe, el usuario debe confirmarlo nuevamente.
+Sin cotizacion, credenciales o URL del webhook, los planes pagos no se habilitan.
+Cambiar el catalogo no modifica automaticamente los contratos existentes.
 
 Los cobros pagos se procesan con Mercado Pago mediante preapprovals mensuales. El plan gratuito se activa internamente sin proveedor externo.
 

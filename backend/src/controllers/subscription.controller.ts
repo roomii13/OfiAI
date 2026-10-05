@@ -21,7 +21,7 @@ class SubscriptionController {
       res.status(200).json({
         exito: true,
         mensaje: 'Planes de suscripción obtenidos correctamente.',
-        datos: subscriptionService.listarPlanes(req.query.audience as 'empresa' | 'profesional' | undefined),
+        datos: await subscriptionService.listarPlanes(req.query.audience as 'empresa' | 'profesional' | undefined),
       });
     } catch (error) {
       next(error);
@@ -163,7 +163,7 @@ class SubscriptionController {
   cambiarPlan = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
     try {
       const context = this.obtenerContextoAutenticado(req);
-      res.json({ exito: true, datos: await subscriptionService.cambiarPlan(req.params.id!, context.usuarioId, context.rol, req.body.plan) });
+      res.json({ exito: true, datos: await subscriptionService.cambiarPlan(req.params.id!, context.usuarioId, context.rol, req.body.plan, req.body.expectedPriceMinor) });
     } catch (error) { next(error); }
   };
 

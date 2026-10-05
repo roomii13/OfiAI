@@ -1,6 +1,14 @@
 /** @archivo billing.d.ts @descripcion Contratos comerciales publicos, sin secretos ni datos de tarjetas. */
 export type BillingPlanId = 'gratuito' | 'profesional' | 'empresa' | 'business_pro' | 'enterprise' | 'pro_plus';
 export type BillingAudience = 'empresa' | 'profesional';
+/** Cotizacion publica aplicada al importe del plan; nunca contiene credenciales. */
+export interface BillingExchangeRate {
+  source: 'mercadopago' | 'manual';
+  base: 'USD';
+  quote: 'ARS';
+  rate: number;
+  asOf: string;
+}
 export interface BillingLimits {
   trabajosPublicados: number;
   propuestasEnviadas: number;
@@ -15,6 +23,7 @@ export interface CommercialPlan {
   precioMensual: number | null;
   moneda: string;
   available: boolean;
+  exchangeRate?: BillingExchangeRate;
   limits: BillingLimits;
   limitesEmpresa: Record<string, number>;
   limitesProfesional: Record<string, number>;

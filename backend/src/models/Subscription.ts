@@ -23,12 +23,14 @@ export interface Suscripcion {
   renovacionAutomatica: boolean;
   catalogVersion?: string;
   priceUsd?: number;
+  exchangeRate?: import('../../../shared/billing').BillingExchangeRate;
   checkoutUrl?: string;
   checkoutAttempted?: boolean;
   providerStatus?: string;
   cancelAtPeriodEnd?: boolean;
   pendingPlan?: { plan: PlanSuscripcion; precioMensual: number; priceUsd: number;
-    limits: import('../../../shared/billing').BillingLimits; effectiveAt: string } | null;
+    limits: import('../../../shared/billing').BillingLimits; effectiveAt: string;
+    exchangeRate?: import('../../../shared/billing').BillingExchangeRate } | null;
   lastPaidAt?: string;
   limitesActuales: {
     trabajosPublicados?: number;

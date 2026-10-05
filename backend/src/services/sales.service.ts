@@ -30,7 +30,7 @@ export class SalesService {
         catch(error){if(!(error instanceof ApiError&&error.codigoEstado===409))throw error;}
         continue;
       }
-      const plans = subscriptionService.listarPlanes(lead.audience);
+      const plans = await subscriptionService.listarPlanes(lead.audience);
       const updated = { ...lead, assessment: salesAgent.assess(lead, plans), followUps: lead.followUps + 1 };
       updated.followUpAt = updated.followUps < 3 ? new Date(Date.now() + 3 * 86400000).toISOString() : null;
       if (['LEAD', 'QUALIFIED'].includes(updated.stage)) updated.stage = 'CONTACTED';
@@ -61,7 +61,7 @@ export class SalesService {
       followUpAt: data.consent ? new Date(Date.now() + 2 * 86400000).toISOString() : null,
       followUps: existing?.followUps ?? 0, lastActivityAt: now, createdAt: existing?.createdAt ?? now,
       updatedAt: now, version: existing?.version ?? 0 };
-    lead.assessment = salesAgent.assess(lead, subscriptionService.listarPlanes(actor.rol));
+    lead.assessment = salesAgent.assess(lead, await subscriptionService.listarPlanes(actor.rol));
     lead.assessment = await salesAgent.enrich(actor,lead);
     return salesRepository.save(lead, lead.version, { kind: existing ? 'consent' : 'created',
       actor: 'user', message: data.consent ? 'Contacto comercial autorizado.' : 'Contacto comercial desactivado.', createdAt: now });
@@ -88,7 +88,7 @@ export class SalesService {
     const data = input(salesReplySchema, raw); const lead = await salesRepository.get(actor.uid);
     if (!lead) throw new ApiError('Primero guarda tus preferencias comerciales.', 404);
     const updated = { ...lead, need: data.message, lastActivityAt: new Date().toISOString(), followUps: 0 };
-    updated.assessment = salesAgent.assess(updated, subscriptionService.listarPlanes(lead.audience));
+    updated.assessment = salesAgent.assess(updated, await subscriptionService.listarPlanes(lead.audience));
     if (updated.assessment.intent === 'purchase' && lead.stage !== 'CUSTOMER') updated.stage = 'INTERESTED';
     return salesRepository.save(updated, lead.version, { kind: 'reply', actor: 'user', message: data.message, createdAt: updated.lastActivityAt });
   }
@@ -99,7 +99,7 @@ export class SalesService {
     if (!lead) throw new ApiError('Lead no encontrado.', 404);
     const user = await userRepository.findById(lead.userId);
     if (!user?.activo) throw new ApiError('La cuenta esta suspendida.', 409);
-    const plans = subscriptionService.listarPlanes(lead.audience);
+    const plans = await subscriptionService.listarPlanes(lead.audience);
     const updated = { ...lead, assessment: salesAgent.assess(lead, plans) };
     if(data.action==='qualify') updated.assessment=await salesAgent.enrich(actor,updated);
     const next: Partial<Record<typeof data.action, SalesStage>> = {

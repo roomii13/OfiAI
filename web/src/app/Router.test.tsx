@@ -377,27 +377,29 @@ describe('Pantallas conectadas a la API', () => {
 
   it('muestra precios USD y no compra antes de confirmar las condiciones', async () => {
     respond('GET /subscriptions/plans?audience=empresa', [{ id: 'empresa', audience: 'empresa', nombre: 'BUSINESS',
-      priceUsd: 35, precioMensual: 35000, moneda: 'ARS', available: true,
+      priceUsd: 20, precioMensual: 20000, moneda: 'ARS', available: true,
+      exchangeRate: { source: 'mercadopago', base: 'USD', quote: 'ARS', rate: 1000, asOf: '2026-10-04T00:00:00Z' },
       limitesEmpresa: { trabajosPublicados: 10 }, limitesProfesional: {} }]);
     respond('GET /subscriptions/history', { eventos: [] });
     respond('POST /subscriptions/checkout', { checkout: { estado: 'configuracion_pendiente' } });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     openPage('/subscriptions');
-    expect(await screen.findByText(/US\$ 35/)).toBeTruthy();
+    expect(await screen.findByText(/US\$ 20/)).toBeTruthy();
+    expect(screen.getByText(/1 USD =/).textContent).toContain('Mercado Pago');
     fireEvent.click(screen.getByRole('button', { name: 'Elegir BUSINESS' }));
     expect(requested()).not.toContain('POST /subscriptions/checkout');
     confirm.mockReturnValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Elegir BUSINESS' }));
     await waitFor(() => expect(requested()).toContain('POST /subscriptions/checkout'));
     const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/subscriptions/checkout'));
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ plan: 'empresa' });
-    expect(String(call?.[1]?.body)).not.toContain('35000');
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ plan: 'empresa', expectedPriceMinor: 2000000 });
+    expect(JSON.parse(String(call?.[1]?.body))).not.toHaveProperty('precioMensual');
     confirm.mockRestore();
   });
 
   it('no permite contratar un plan sin conversion o proveedor configurado', async () => {
     respond('GET /subscriptions/plans?audience=empresa', [{ id: 'empresa', audience: 'empresa', nombre: 'BUSINESS',
-      priceUsd: 35, precioMensual: null, moneda: 'ARS', available: false,
+      priceUsd: 20, precioMensual: null, moneda: 'ARS', available: false,
       limitesEmpresa: { trabajosPublicados: 10 }, limitesProfesional: {} }]);
     respond('GET /subscriptions/history', { eventos: [] });
     openPage('/subscriptions');

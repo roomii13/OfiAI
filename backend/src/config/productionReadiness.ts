@@ -55,9 +55,9 @@ export function obtenerReadinessProduccion(): ReadinessProduccion {
     ),
     servicioConfigurado(
       'catalogo_comercial',
-      Boolean(env.MERCADOPAGO_CURRENCY === 'ARS' && env.BILLING_USD_TO_ARS),
-      'Precio local configurado; los contratos anteriores conservan su importe.',
-      'Falta definir BILLING_USD_TO_ARS para contratar los nuevos planes.'
+      Boolean(env.MERCADOPAGO_CURRENCY === 'ARS' && (env.BILLING_USD_TO_ARS || (env.MERCADOPAGO_ACCESS_TOKEN && env.MERCADOPAGO_PUBLIC_KEY))),
+      'Conversion configurada; disponibilidad y vigencia se verifican al consultar planes. Los contratos anteriores conservan su importe.',
+      'Faltan credenciales para cotizar USD/ARS o una cotizacion manual BILLING_USD_TO_ARS.'
     ),
     servicioConfigurado(
       'resend',

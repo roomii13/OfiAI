@@ -251,6 +251,7 @@ export class SubscriptionRepository {
           fechaVencimiento: sub.lastPaidAt && sub.fechaVencimiento > periodEnd ? sub.fechaVencimiento : periodEnd,
           mercadoPagoPaymentId: payment.id, lastPaidAt: paidAt.toISOString(), fechaActualizacion: now,
           ...(pending ? { plan: pending.plan, precioMensual: pending.precioMensual, priceUsd: pending.priceUsd,
+            ...(pending.exchangeRate ? { exchangeRate: pending.exchangeRate } : {}),
             limitesActuales: pending.limits, pendingPlan: null } : {}) });
         if (!account?.currentSubscriptionId || account.pendingSubscriptionId === sub.id || account.currentSubscriptionId === sub.id) {
           tx.set(accountRef, { ...account, currentSubscriptionId: sub.id,

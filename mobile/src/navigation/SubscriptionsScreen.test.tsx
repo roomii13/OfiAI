@@ -11,7 +11,9 @@ jest.mock('../providers/theme', () => ({ useThemeMobile: () => ({ colores: {
 jest.mock('@react-navigation/native', () => ({ useFocusEffect: (callback: () => void) => require('react').useEffect(callback, [callback]) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
-const plan = { id: 'empresa', nombre: 'BUSINESS', audience: 'empresa', priceUsd: 35, limits: { trabajosPublicados: 10 } };
+const plan = { id: 'empresa', nombre: 'BUSINESS', audience: 'empresa', priceUsd: 20, precioMensual: 20000, moneda: 'ARS',
+  exchangeRate: { source: 'mercadopago', base: 'USD', quote: 'ARS', rate: 1000, asOf: '2026-10-04T00:00:00Z' },
+  limits: { trabajosPublicados: 10 } };
 beforeEach(() => {
   jest.clearAllMocks();
   (apiMobile.get as jest.Mock).mockImplementation(async (path: string) => ({ exito: true, datos: path.includes('/plans') ? [plan]
@@ -23,7 +25,8 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 it('muestra consumo y precios reales, sin lanzar checkout de Mercado Pago desde la tienda', async () => {
   render(<SubscriptionsScreen />);
-  await screen.findByText('US$ 35 /mes');
+  await screen.findByText('US$ 20 /mes');
+  expect(screen.getByText(/1 USD =/).props.children.join('')).toContain('Mercado Pago');
   expect(screen.getByText('Trabajos Publicados: 2 / 10')).toBeTruthy();
   expect(screen.getByText(/aun no disponibles/)).toBeTruthy();
   expect(apiMobile.post).not.toHaveBeenCalled();

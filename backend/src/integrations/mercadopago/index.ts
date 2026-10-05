@@ -90,6 +90,19 @@ export type FacturaMercadoPago = z.infer<typeof invoiceSchema>;
  */
 export const mercadoPagoDisponible = (): boolean => Boolean(env.MERCADOPAGO_ACCESS_TOKEN);
 
+/** Consulta USD/ARS sin crear pagos y valida la moneda, fecha e importe del proveedor. */
+export async function obtenerCotizacionMercadoPago(): Promise<{ rate: number; asOf: string }> {
+  if (!env.MERCADOPAGO_PUBLIC_KEY) throw new ApiError('La cotizacion no esta configurada.', 503);
+  const query = new URLSearchParams({ from: 'USD', to: 'ARS', public_key: env.MERCADOPAGO_PUBLIC_KEY });
+  const response = await mercadoPagoRequest('/v1/exchange_rates?' + query.toString(), { method: 'GET', timeoutMs: 5000 });
+  const parsed = z.object({
+    currency_base: z.literal('USD'), currency_quote: z.literal('ARS'),
+    rate: z.number().finite().positive().max(1000000), creation_date: z.string().datetime({ offset: true }),
+  }).safeParse(response);
+  if (!parsed.success) throw new ApiError('El proveedor no devolvio una cotizacion valida.', 502);
+  return { rate: parsed.data.rate, asOf: parsed.data.creation_date };
+}
+
 /**
  * Crea una preaprobación mensual en Mercado Pago.
  */
@@ -222,6 +235,7 @@ export const validarFirmaMercadoPago = (
 interface MercadoPagoRequestOptions {
   method: 'GET' | 'POST' | 'PUT';
   body?: Record<string, unknown>;
+  timeoutMs?: number;
 }
 
 /**
@@ -236,7 +250,8 @@ const mercadoPagoRequest = async <T>(
   }
 
   const response = await fetch(`${MERCADO_PAGO_API_URL}${path}`, {
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(options.timeoutMs ?? 15000),
+    redirect: 'error',
     method: options.method,
     headers: {
       Authorization: `Bearer ${env.MERCADOPAGO_ACCESS_TOKEN}`,

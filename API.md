@@ -96,6 +96,13 @@ Contrato, cache, errores y seguridad: [Matching Agent](docs/MatchingAgent.md).
 | `POST` | `/subscriptions/:id/renew` | Sí | Renovación manual |
 | `POST` | `/subscriptions/webhooks/mercadopago` | Firma MP | Webhook Mercado Pago |
 
+El catalogo incluye `exchangeRate` (fuente, USD/ARS, tasa y fecha) cuando existe cotizacion.
+Los checkouts y cambios de plan pagos requieren `expectedPriceMinor`: importe mensual
+en centavos que el usuario confirmo. El servidor lo compara con su propio precio;
+si falta o no coincide devuelve `409` sin crear ni actualizar un contrato externo.
+`BILLING_USD_TO_ARS` vacio utiliza la cotizacion de Mercado Pago. Una cotizacion
+invalida o no disponible bloquea nuevos checkouts pagos, sin alterar renovaciones existentes.
+
 ## Notificaciones
 
 | Método | Ruta | Auth | Uso |

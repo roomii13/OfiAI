@@ -12,6 +12,7 @@ export const esquemaSuscribirse = z.object({
   plan: esquemaPlanSuscripcion,
   successUrl: z.string().url().optional(),
   cancelUrl: z.string().url().optional(),
+  expectedPriceMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
 }).strict();
 
 export type DatosSuscribirse = z.infer<typeof esquemaSuscribirse>;
@@ -21,7 +22,8 @@ export const esquemaCancelarSuscripcion = z.object({
   cancelarAlFinalDelPeriodo: z.boolean().default(true),
 }).strict();
 
-export const esquemaCambioPlan = z.object({ plan: billingPlanSchema }).strict();
+export const esquemaCambioPlan = z.object({ plan: billingPlanSchema,
+  expectedPriceMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional() }).strict();
 export const esquemaCatalogo = z.object({ audience: z.enum(['empresa', 'profesional']).optional() }).strict();
 export const esquemaRevenue = z.object({ month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/) }).strict();
 export const esquemaFeePreview = z.object({ grossMinor: z.number().int().min(0).max(1000000000000) }).strict();

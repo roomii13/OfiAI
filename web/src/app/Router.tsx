@@ -716,6 +716,7 @@ function SubscriptionsPage() {
     if (pending) return;
     const selected = available.data?.find(item => item.id === plan);
     if (!selected?.available) return;
+    const expectedPriceMinor = selected.precioMensual === null ? undefined : Math.round(selected.precioMensual * 100);
     const change = current.data && current.data.plan !== 'gratuito' && current.data.estado === 'activa';
     const terms = selected.priceUsd === 0 ? 'Plan FREE.' : selected.moneda + ' ' + selected.precioMensual?.toLocaleString()
       + ' por mes, con renovacion automatica hasta que canceles.';
@@ -723,18 +724,18 @@ function SubscriptionsPage() {
     setPending(true); setStatus('');
     try {
       if (change) {
-        await api.post('/subscriptions/' + current.data!.id + '/change-plan', { plan });
+        await api.post('/subscriptions/' + current.data!.id + '/change-plan', { plan, expectedPriceMinor });
         setStatus('Cambio programado para el siguiente periodo confirmado.');
         current.reload(); history.reload(); return;
       }
       const response = await api.post<ApiEnvelope<{ checkout: { url?: string; estado: string } }>>('/subscriptions/checkout', {
-        plan, successUrl: `${window.location.origin}/subscriptions/success`, cancelUrl: `${window.location.origin}/subscriptions`,
+        plan, expectedPriceMinor, successUrl: `${window.location.origin}/subscriptions/success`, cancelUrl: `${window.location.origin}/subscriptions`,
       });
       const checkout = response.datos?.checkout;
       if (checkout?.url) { window.location.assign(checkout.url); return; }
       setStatus(checkout?.estado === 'no_requiere_pago' ? 'Plan gratuito activado.' : 'El checkout no esta disponible en este momento.');
       current.reload(); history.reload();
-    } catch (error) { setStatus(errorMessage(error)); }
+    } catch (error) { setStatus(errorMessage(error)); available.reload(); }
     finally { setPending(false); }
   }
 
@@ -754,6 +755,8 @@ function SubscriptionsPage() {
           <p className="mt-4 text-2xl">US$ {plan.priceUsd}<span className="text-sm">/mes</span></p>
           {plan.priceUsd > 0 && <p className="mt-2 text-sm">{plan.precioMensual !== null
             ? plan.moneda + ' ' + plan.precioMensual.toLocaleString() + ' por mes' : 'Importe local pendiente de configuracion'}</p>}
+          {plan.exchangeRate && <p className="mt-2 text-sm text-muted">1 USD = {plan.exchangeRate.rate.toLocaleString()} ARS.
+            {' '}{plan.exchangeRate.source === 'mercadopago' ? 'Mercado Pago' : 'Cotizacion configurada'} · {new Date(plan.exchangeRate.asOf).toLocaleDateString()}</p>}
       <ul className="my-4 flex-1 space-y-2">{Object.entries(plan.audience === 'profesional' ? plan.limitesProfesional : plan.limitesEmpresa)
         .filter(([key]) => key === 'trabajosPublicados' || key === 'propuestasEnviadas').map(([key, value]) =>
             <li key={key}>{metricLabel(key)}: {value === -1 ? 'Sin limite' : value}</li>)}</ul>

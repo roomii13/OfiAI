@@ -6,9 +6,18 @@
 
 | Plan | Precio Mensual | Target |
 |---|---|---|
-| Básico | $29 USD | Pequeñas empresas (1-5 trabajos/mes) |
-| Pro | $79 USD | Medianas empresas (hasta 20 trabajos/mes) |
-| Enterprise | $199 USD | Grandes empresas (ilimitado) |
+| FREE | USD 0 | Empresas y profesionales, cuotas iniciales |
+| PRO | USD 3 | Profesionales, 50 propuestas/mes |
+| PRO+ | USD 59 | Profesionales, propuestas sin limite |
+| BUSINESS | USD 20 | Empresas, hasta 10 trabajos/mes |
+| BUSINESS PRO | USD 79 | Empresas, hasta 40 trabajos/mes |
+| ENTERPRISE | USD 149 | Empresas, trabajos sin limite |
+
+Precios del catalogo `backend/src/constants/billing.ts` para nuevas contrataciones.
+Los cobros en ARS usan la cotizacion de Mercado Pago con cache de una hora, o
+`BILLING_USD_TO_ARS` como alternativa manual. Se necesitan credenciales y URL publica
+del webhook. Los contratos existentes conservan su importe pactado; si el importe
+mostrado cambia antes del checkout, se requiere otra confirmacion.
 
 ### 2. Comisión por Trabajo Completado
 - 5-8% sobre el valor del trabajo completado

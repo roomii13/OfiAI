@@ -10,6 +10,7 @@ import type { HistorialSuscripcion, ResultadoCheckoutSuscripcion } from '../mode
 import type { RolUsuario } from '../models/User';
 import type { BillingAudience, BillingOverview, CommercialPlan } from '../../../shared/billing';
 import { env } from '../config/env';
+import { billingExchangeService } from './billing-exchange.service';
 import { BILLING_CATALOG_VERSION, COMMERCIAL_PLANS } from '../constants/billing';
 import { amountMinor, calculateTransactionFee, hasPaidAccess, nextBillingMonth } from '../utils/billing';
 import type { DatosCancelarSuscripcion, DatosSuscribirse } from '../validators/subscription.validator';
@@ -28,13 +29,14 @@ export interface ResultadoHistorialSuscripcion { suscripciones: Suscripcion[]; e
 /** Servicio comercial unico; Mercado Pago realiza el cobro automatico mensual. */
 export class SubscriptionService {
   /** Precios de nuevos contratos; mantiene IDs y no modifica suscripciones anteriores. */
-  listarPlanes(audience?: BillingAudience): CommercialPlan[] {
+  async listarPlanes(audience?: BillingAudience): Promise<CommercialPlan[]> {
+    const exchangeRate = await billingExchangeService.get();
     return COMMERCIAL_PLANS.filter(plan => !audience || plan.audience === audience).map(base => {
       const override = base.id === 'gratuito' ? undefined : env.BILLING_CATALOG_JSON[base.id];
       const priceUsd = override?.priceUsd ?? base.priceUsd; const limits = override?.limits ?? base.limits;
-      const localPrice = priceUsd === 0 ? 0 : env.MERCADOPAGO_CURRENCY === 'ARS' && env.BILLING_USD_TO_ARS
-        ? amountMinor(priceUsd * env.BILLING_USD_TO_ARS) / 100 : null;
+      const localPrice = priceUsd === 0 ? 0 : exchangeRate ? amountMinor(priceUsd * exchangeRate.rate) / 100 : null;
       return { ...base, priceUsd, limits, precioMensual: localPrice, moneda: env.MERCADOPAGO_CURRENCY,
+        ...(priceUsd > 0 && exchangeRate ? { exchangeRate } : {}),
         available: priceUsd === 0 || (localPrice !== null && mercadoPagoDisponible()
           && Boolean(env.MERCADOPAGO_WEBHOOK_SECRET && env.MERCADOPAGO_NOTIFICATION_URL)),
         limitesEmpresa: { trabajosPublicados: limits.trabajosPublicados, consultasIA: limits.consultasIA, perfilesVisibles: limits.perfilesVisibles },
@@ -44,7 +46,7 @@ export class SubscriptionService {
 
   /** Inicia o recupera el unico checkout pendiente del titular. */
   async crearCheckout(uid: string, role: RolUsuario, data: DatosSuscribirse): Promise<ResultadoCheckoutSuscripcion> {
-    const plan = this.plan(data.plan, role);
+    const plan = await this.plan(data.plan, role);
     return subscriptionRepository.withAccountLock(uid, async () => {
       const current = await this.obtenerActual(uid);
       let pending = await subscriptionRepository.pending(uid);
@@ -57,6 +59,7 @@ export class SubscriptionService {
         throw new ApiError('Ya tienes un contrato. Cambia de plan desde tu suscripcion actual.', 409);
       }
       if (plan.id !== 'gratuito' && !plan.available) throw new ApiError('El cobro de este plan todavia no esta configurado.', 503);
+      if (plan.id !== 'gratuito') this.confirmedPrice(data.expectedPriceMinor, pending?.precioMensual ?? plan.precioMensual!);
       const user = await userRepository.findById(uid);
       if (!user) throw new ApiError('Usuario no encontrado para crear suscripcion.', 404);
       const backUrl = this.returnUrl(data.successUrl);
@@ -147,9 +150,9 @@ export class SubscriptionService {
   }
 
   /** Upgrade o downgrade al siguiente ciclo, sin prorrateo ni crear otro contrato. */
-  async cambiarPlan(id: string, uid: string, role: RolUsuario, planId: PlanSuscripcion): Promise<Suscripcion> {
+  async cambiarPlan(id: string, uid: string, role: RolUsuario, planId: PlanSuscripcion, expectedPriceMinor?: number): Promise<Suscripcion> {
     const owned = await this.obtenerSuscripcionPorId(id); this.validarPropietario(owned, uid, role);
-    const plan = this.plan(planId, owned.rolUsuario);
+    const plan = await this.plan(planId, owned.rolUsuario);
     return subscriptionRepository.withAccountLock(owned.usuarioId, async () => {
       const current = await this.obtenerSuscripcionPorId(id);
       if (plan.id === 'gratuito') return this.cancel(current, { cancelarAlFinalDelPeriodo: true });
@@ -161,7 +164,9 @@ export class SubscriptionService {
       if (current.pendingPlan && current.pendingPlan.plan !== plan.id) throw new ApiError('Ya hay un cambio de plan pendiente.', 409);
       if (current.plan === plan.id && !current.pendingPlan) return current;
       const pending = current.pendingPlan ?? { plan: plan.id, precioMensual: plan.precioMensual,
-        priceUsd: plan.priceUsd, limits: plan.limits, effectiveAt: current.fechaVencimiento.toISOString() };
+        priceUsd: plan.priceUsd, limits: plan.limits, effectiveAt: current.fechaVencimiento.toISOString(),
+        ...(plan.exchangeRate ? { exchangeRate: plan.exchangeRate } : {}) };
+      this.confirmedPrice(expectedPriceMinor, pending.precioMensual);
       await subscriptionRepository.update(id, { pendingPlan: pending });
       await actualizarImporteMercadoPago(current.mercadoPagoPreapprovalId, pending.precioMensual, current.moneda);
       await this.event(current, 'cambio_plan_programado', 'Cambio a ' + plan.nombre + ' desde el siguiente periodo confirmado.');
@@ -244,14 +249,25 @@ export class SubscriptionService {
       plan: plan.id, estado: plan.priceUsd === 0 ? 'activa' : 'pendiente_pago', precioMensual: plan.precioMensual ?? 0,
       moneda: plan.moneda, fechaInicio: now, fechaVencimiento: plan.priceUsd === 0 ? nextBillingMonth(now) : now,
       renovacionAutomatica: plan.priceUsd > 0, limitesActuales: plan.limits, catalogVersion: BILLING_CATALOG_VERSION,
+      ...(plan.exchangeRate ? { exchangeRate: plan.exchangeRate } : {}),
       priceUsd: plan.priceUsd, fechaCreacion: now, fechaActualizacion: now };
   }
 
   /** Rechaza planes de otra audiencia. */
-  private plan(id: PlanSuscripcion, role: RolUsuario): CommercialPlan {
-    const plan = this.listarPlanes(role === 'admin' ? undefined : role).find(item => item.id === id && item.audience === role);
+  private async plan(id: PlanSuscripcion, role: RolUsuario): Promise<CommercialPlan> {
+    if (!COMMERCIAL_PLANS.some(item => item.id === id && item.audience === role)) {
+      throw new ApiError('Ese plan no corresponde al tipo de cuenta.', 403);
+    }
+    const plan = (await this.listarPlanes(role === 'admin' ? undefined : role)).find(item => item.id === id && item.audience === role);
     if (!plan) throw new ApiError('Ese plan no corresponde al tipo de cuenta.', 403);
     return plan;
+  }
+
+  /** El precio del cliente solo confirma consentimiento; nunca determina el importe a cobrar. */
+  private confirmedPrice(expectedPriceMinor: number | undefined, serverPrice: number): void {
+    if (expectedPriceMinor !== amountMinor(serverPrice)) {
+      throw new ApiError('El importe cambio o falta confirmarlo. Actualiza los planes antes de continuar; si hay un checkout pendiente, revisalo o cancelalo.', 409);
+    }
   }
 
   /** Restringe el retorno a origenes exactos autorizados por el servidor. */

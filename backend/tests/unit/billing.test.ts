@@ -4,6 +4,7 @@ import { MemoryFirestore } from '../intake-fixtures';
 import { SubscriptionService } from '../../src/services/subscription.service';
 import { subscriptionRepository as repository, subscriptionEntitlements } from '../../src/repositories/subscription.repository';
 import { env } from '../../src/config/env';
+import { billingOverridesSchema } from '../../src/constants/billing';
 import { billingDate, calculateTransactionFee, nextBillingMonth } from '../../src/utils/billing';
 import type { Suscripcion } from '../../src/models/Subscription';
 import * as mp from '../../src/integrations/mercadopago';
@@ -46,44 +47,58 @@ beforeEach(async () => {
 });
 afterEach(() => jest.useRealTimers());
 
-it('ofrece cuatro planes empresa, tres profesional y precios pagos desde USD35', () => {
-  expect(service.listarPlanes('empresa').map(p => p.nombre)).toEqual(['FREE', 'BUSINESS', 'BUSINESS PRO', 'ENTERPRISE']);
-  expect(service.listarPlanes('profesional').map(p => p.priceUsd)).toEqual([0, 35, 59]);
-  expect(service.listarPlanes().filter(p => p.priceUsd > 0).every(p => p.priceUsd >= 35)).toBe(true);
+it('ofrece PRO a USD3 y planes empresa desde USD20 sin modificar los niveles superiores', async () => {
+  const companies = await service.listarPlanes('empresa');
+  const professionals = await service.listarPlanes('profesional');
+  expect(companies.map(p => p.nombre)).toEqual(['FREE', 'BUSINESS', 'BUSINESS PRO', 'ENTERPRISE']);
+  expect(companies.map(p => p.priceUsd)).toEqual([0, 20, 79, 149]);
+  expect(professionals.map(p => p.priceUsd)).toEqual([0, 3, 59]);
+  expect(companies[1]).toMatchObject({ precioMensual: 20000, moneda: 'ARS' });
+  expect(professionals[1]).toMatchObject({ precioMensual: 3000, moneda: 'ARS' });
+});
+it.each([
+  { plan: 'profesional', priceUsd: 3 }, { plan: 'pro_plus', priceUsd: 3 },
+  { plan: 'empresa', priceUsd: 20 }, { plan: 'business_pro', priceUsd: 20 }, { plan: 'enterprise', priceUsd: 20 },
+])('valida el minimo comercial de $plan sin imponer el antiguo piso de USD35', ({ plan, priceUsd }) => {
+  const limits = { trabajosPublicados: 1, propuestasEnviadas: 1, consultasIA: 1, perfilesVisibles: 1 };
+  expect(billingOverridesSchema.safeParse({ [plan]: { priceUsd, limits } }).success).toBe(true);
+  expect(billingOverridesSchema.safeParse({ [plan]: { priceUsd: priceUsd - 0.01, limits } }).success).toBe(false);
 });
 it('no inventa conversion ni crea contratos cuando falta cotizacion local', async () => {
   env.BILLING_USD_TO_ARS = undefined;
-  expect(service.listarPlanes('empresa')[1]).toMatchObject({ precioMensual: null, available: false });
+  expect((await service.listarPlanes('empresa'))[1]).toMatchObject({ precioMensual: null, available: false });
   await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa' })).rejects.toMatchObject({ codigoEstado: 503 });
   expect([...db.documents.keys()].filter(k => k.startsWith('subscriptions/'))).toHaveLength(0);
 });
 it('rechaza planes de otro rol, admin y redireccion externa', async () => {
   await expect(service.crearCheckout('company-a', 'empresa', { plan: 'profesional' })).rejects.toMatchObject({ codigoEstado: 403 });
   await expect(service.crearCheckout('company-a', 'admin', { plan: 'empresa' })).rejects.toMatchObject({ codigoEstado: 403 });
-  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', successUrl: 'https://evil.example/' })).rejects.toMatchObject({ codigoEstado: 400 });
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000, successUrl: 'https://evil.example/' })).rejects.toMatchObject({ codigoEstado: 400 });
 });
 it('recupera el mismo checkout sin crear otra preaprobacion ni activar acceso', async () => {
-  const a = await service.crearCheckout('company-a', 'empresa', { plan: 'empresa' });
-  const b = await service.crearCheckout('company-a', 'empresa', { plan: 'empresa' });
+  const a = await service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 });
+  const b = await service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 });
   expect(a.suscripcion.id).toBe(b.suscripcion.id); expect(provider.crearPreapprovalMercadoPago).toHaveBeenCalledTimes(1);
   expect(a.suscripcion.estado).toBe('pendiente_pago');
+  expect(a.suscripcion.precioMensual).toBe(20000);
+  expect(provider.crearPreapprovalMercadoPago).toHaveBeenCalledWith(expect.objectContaining({ amount: 20000, currency: 'ARS' }));
   expect((await service.overview('company-a', 'empresa')).entitlements.paid).toBe(false);
 });
 it('un timeout de checkout no habilita un segundo contrato a ciegas', async () => {
   provider.crearPreapprovalMercadoPago.mockRejectedValueOnce(new Error('timeout'));
   provider.buscarPreapprovalMercadoPago.mockResolvedValue(null);
-  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa' })).rejects.toThrow('timeout');
-  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa' })).rejects.toMatchObject({ codigoEstado: 409 });
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 })).rejects.toThrow('timeout');
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 })).rejects.toMatchObject({ codigoEstado: 409 });
   expect(provider.crearPreapprovalMercadoPago).toHaveBeenCalledTimes(1);
 });
 it('rechaza un checkout con dominio no autorizado devuelto por el proveedor', async () => {
   provider.crearPreapprovalMercadoPago.mockResolvedValueOnce({ id: 'pre-1', initPoint: 'https://mercadopago.com.ar.evil.example/pay' });
-  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa' })).rejects.toMatchObject({ codigoEstado: 502 });
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 })).rejects.toMatchObject({ codigoEstado: 502 });
 });
 it('serializa operaciones de la misma cuenta entre procesos', async () => {
   const results = await Promise.allSettled([
-    service.crearCheckout('company-a', 'empresa', { plan: 'empresa' }),
-    service.crearCheckout('company-a', 'empresa', { plan: 'empresa' }),
+    service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 }),
+    service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 }),
   ]);
   expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
   expect(provider.crearPreapprovalMercadoPago).toHaveBeenCalledTimes(1);
@@ -147,7 +162,7 @@ it('cancela futuros debitos, conserva acceso y evita otra cancelacion externa', 
 });
 it('programa upgrade sin concederlo hasta el primer cobro del nuevo periodo', async () => {
   await seed(); await repository.applyPayment('sub-1', payment());
-  await service.cambiarPlan('sub-1', 'company-a', 'empresa', 'business_pro');
+  await service.cambiarPlan('sub-1', 'company-a', 'empresa', 'business_pro', 7900000);
   expect((await repository.findById('sub-1'))?.plan).toBe('empresa');
   expect(provider.actualizarImporteMercadoPago).toHaveBeenCalledWith('pre-1', 79000, 'ARS');
   jest.setSystemTime(new Date('2026-10-26T12:01:00Z'));
@@ -191,4 +206,15 @@ it('comisiones sin floats ni cobros cuando no hay una politica aprobada', () => 
   expect(calculateTransactionFee(101, 500)).toBe(5);
   expect(() => calculateTransactionFee(100, 10001)).toThrow();
   expect(() => service.feePreview(10000)).toThrow('aun no fue configurada');
+});
+it.each([undefined, 1, 3500000])('no crea un contrato con importe sin confirmar o distinto: %s', async expectedPriceMinor => {
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor })).rejects.toMatchObject({ codigoEstado: 409 });
+  expect(provider.crearPreapprovalMercadoPago).not.toHaveBeenCalled();
+  expect([...db.documents.keys()].filter(k => k.startsWith('subscriptions/'))).toHaveLength(0);
+});
+it('conserva el importe del checkout pendiente y rechaza cambios silenciosos de cotizacion', async () => {
+  await service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 });
+  env.BILLING_USD_TO_ARS = 1200;
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2400000 })).rejects.toMatchObject({ codigoEstado: 409 });
+  expect(provider.crearPreapprovalMercadoPago).toHaveBeenCalledTimes(1);
 });

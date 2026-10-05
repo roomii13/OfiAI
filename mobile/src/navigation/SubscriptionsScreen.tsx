@@ -74,6 +74,9 @@ export function SubscriptionsScreen() {
         {catalog.data?.map((plan, index) => <View key={plan.id} style={[styles.plan, { backgroundColor: ['#e9f5fc', '#edf7f0', '#f2edfa', '#fff1f2'][index % 4] }]}>
           <Text style={styles.planName}>{plan.nombre}</Text>
           <Text style={styles.price}>US$ {plan.priceUsd} /mes</Text>
+          {plan.priceUsd > 0 && plan.precioMensual != null && <Text style={styles.planText}>{plan.moneda} {plan.precioMensual.toLocaleString()} /mes en la web</Text>}
+          {plan.exchangeRate && <Text style={styles.planText}>1 USD = {plan.exchangeRate.rate.toLocaleString()} ARS.
+            {' '}{plan.exchangeRate.source === 'mercadopago' ? 'Mercado Pago' : 'Cotizacion configurada'} · {new Date(plan.exchangeRate.asOf).toLocaleDateString()}</Text>}
           <Text style={styles.planText}>{plan.audience === 'empresa'
             ? 'Trabajos publicados: ' + (plan.limits.trabajosPublicados === -1 ? 'Sin limite' : plan.limits.trabajosPublicados)
             : 'Propuestas: ' + (plan.limits.propuestasEnviadas === -1 ? 'Sin limite' : plan.limits.propuestasEnviadas)}</Text>

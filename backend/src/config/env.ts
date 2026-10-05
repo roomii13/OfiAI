@@ -77,6 +77,7 @@ const envSchema = z.object({
   GOOGLE_MAPS_API_KEY: z.string().default(''),
 
   // Mercado Pago
+  MERCADOPAGO_PUBLIC_KEY: z.string().default(''),
   MERCADOPAGO_ACCESS_TOKEN: z.string().default(''),
   MERCADOPAGO_WEBHOOK_SECRET: z.string().default(''),
   MERCADOPAGO_CURRENCY: z.string().default('ARS'),
