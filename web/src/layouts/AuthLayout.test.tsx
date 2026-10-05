@@ -16,10 +16,13 @@ it('muestra el fondo decorativo sin esconder los controles del login', () => {
   expect(image?.getAttribute('alt')).toBe('');
   expect(image?.getAttribute('aria-hidden')).toBe('true');
   expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: /Contactar por WhatsApp/ }).getAttribute('href'))
+    .toBe('https://wa.me/5492954446198');
 });
 
 it('mantiene el layout de registro sin agregar el fondo de login', () => {
   const { container } = render(<AuthLayout><h1>Registro de empresa</h1></AuthLayout>);
   expect(container.querySelector('.ofi-login-image')).toBeNull();
   expect(screen.getByRole('heading', { name: 'Registro de empresa' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: /Contactar por WhatsApp/ })).toBeTruthy();
 });

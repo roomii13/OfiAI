@@ -5,6 +5,7 @@
  */
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { WhatsAppContact } from './WhatsAppContact';
 
 /**
  * Envuelve vistas públicas con navegación mínima de acceso.
@@ -20,8 +21,9 @@ export const LandingLayout = ({ children }: { children: ReactNode }) => {
         </div>
       </nav>
       <main>{children}</main>
-      <footer className="border-t border-border px-6 py-5 text-sm text-gray-500 lg:px-12">
-        OfiAI conecta demanda, talento y operaciones con IA aplicada a oficios.
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-5 text-sm text-gray-500 lg:px-12">
+        <p>OfiAI conecta demanda, talento y operaciones con IA aplicada a oficios.</p>
+        <WhatsAppContact />
       </footer>
     </div>
   );

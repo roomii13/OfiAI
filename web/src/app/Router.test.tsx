@@ -77,6 +77,8 @@ describe('Operaciones de agentes conectadas a API', () => {
     respond('GET /support/sessions', []);
     openPage('/operations/marketing');
     expect(await screen.findByText('No hay conversaciones guardadas.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Contactar por WhatsApp/ }).getAttribute('href'))
+      .toBe('https://wa.me/5492954446198');
     expect(screen.queryByRole('link', { name: 'Marketing' })).toBeNull();
     expect(requested()).not.toContain('GET /marketing');
   });

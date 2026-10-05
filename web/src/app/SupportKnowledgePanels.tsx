@@ -4,6 +4,7 @@ import { Send,Plus,Trash2,Search,Check,Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApiResource } from '../lib/api/resources';
 import { AgentState,AgentRefresh,useAgentAction } from './AgentWorkspace';
+import { WhatsAppContact } from '../layouts/WhatsAppContact';
 import type { SupportSession,SupportTicket } from '../../../shared/support';
 import type { KnowledgeDocument,KnowledgeSearch } from '../../../shared/knowledge';
 /** Conversacion real, recuperable y con un identificador estable por reintento. */
@@ -29,7 +30,7 @@ export function SupportPanel() {
     const value=await action.run<SupportSession>('/support/sessions/'+id+'/messages',{message,version:current.data.version,requestId:pending.current.id});
     if(value){setMessage('');pending.current=null;}
   }
-  return <><div className="agent-row"><h2>Soporte</h2><AgentRefresh onClick={()=>{sessions.reload();current.reload();tickets.reload();}}/></div>
+  return <><div className="agent-row"><h2>Soporte</h2><AgentRefresh onClick={()=>{sessions.reload();current.reload();tickets.reload();}}/><WhatsAppContact /></div>
     <div className="agent-form"><label>Contexto<select value={tool} onChange={e=>setTool(e.target.value)}>
       <option value="">Consulta general</option><option value="getJob">Un trabajo</option><option value="getSubscription">Mi suscripcion</option>
       <option value="getInvoice">Un recibo</option><option value="getProfessional">Un profesional</option></select></label>
