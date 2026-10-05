@@ -1,7 +1,71 @@
 # OfiAI - Guía de Despliegue
 
-Cloudflare es el destino acordado. Cloud Run queda como referencia historica;
-no activar cobros ni desplegar hasta validar el entorno final.
+La web permanece en Cloudflare Pages (`https://ofiai.pages.dev`). El alojamiento
+de la API es Render Free. La validacion del entorno final sigue siendo necesaria.
+
+## Estado del despliegue (2026-10-05)
+
+- Wrangler autorizado para la cuenta del proyecto. No se publico un Worker de API.
+- Las pruebas locales de Express/Firebase Admin directamente en Workers fallaron
+  por dependencias Node (`iconv-lite`, generacion dinamica de protobuf y `__dirname`).
+  Se retiraron los adaptadores experimentales; el backend Node conserva su arquitectura.
+- Cloudflare Containers fue descartado por la usuaria por su costo. No contratarlo.
+- Cloud Run no fue elegido; requiere cuenta de facturacion.
+- Render gratuito sirve para pruebas, no para declarar este backend listo para produccion:
+  suspende instancias inactivas y el proveedor desaconseja ese plan para produccion.
+- Render CLI y acceso al repositorio privado autorizados. Servicio `ofiai-api`
+  creado en el plan `free`: `https://ofiai-api.onrender.com`.
+- La creacion del servicio no confirma un despliegue saludable. Consultar liveness,
+  readiness, logs y flujos autenticados antes de habilitar trafico de usuarios.
+- No se realizaron cobros de prueba.
+- Verificacion local tras retirar el experimento: `tsc --noEmit` y 298 tests
+  en 27 suites correctos. Esto no valida un despliegue ni operaciones reales de pago.
+
+Referencias: [Cloud Run](https://cloud.google.com/run/pricing),
+[requisitos de la cuota gratuita](https://docs.cloud.google.com/free/docs/free-cloud-features),
+[limitaciones de Render](https://render.com/docs/free).
+
+## Backend en Render (alojamiento elegido)
+
+- Servicio: `srv-db1i1ugu01pc73ei043g`, region `oregon`, plan `free`.
+- Repositorio: `roomii13/OfiAI`, privado, rama `main`.
+- Root Directory: vacio; `shared/` debe quedar disponible para TypeScript.
+- Runtime: Node 22, `NODE_VERSION=22`.
+- Build: `npm --prefix backend ci --include=dev && npm --prefix backend run build`.
+- Start: `npm --prefix backend start`.
+- Health Check: `/api/v1/health/liveness`.
+- Autodeploy desactivado durante la puesta en marcha; desplegar commits verificados.
+
+Variables protegidas: cargar las claves reales desde `backend/.env` solo en Render,
+sin subir ese archivo al repositorio. Configuracion especifica:
+
+```dotenv
+NODE_ENV=production
+CORS_ORIGINS=https://ofiai.pages.dev
+TRUST_PROXY_HOPS=1
+FIREBASE_DATABASE_ID=default
+MERCADOPAGO_NOTIFICATION_URL=https://ofiai-api.onrender.com/api/v1/subscriptions/webhooks/mercadopago
+WHATSAPP_TOKEN=
+WHATSAPP_PHONE_ID=
+```
+
+WhatsApp queda no disponible hasta completar ambas credenciales reales. No usar
+valores de ejemplo para forzar un readiness saludable. El resto de los proveedores
+conserva sus validaciones obligatorias. Verificar en los logs que Render utiliza
+la IP del cliente, no una IP interna ni una cabecera falsificada.
+
+Cloudflare Pages necesita `VITE_API_URL=https://ofiai-api.onrender.com/api/v1`
+y `VITE_ENABLE_DEMO_ACCESS=false`, seguidos de un nuevo build. Registrar
+`ofiai.pages.dev` como dominio autorizado en Firebase Authentication.
+
+El webhook publico tambien debe configurarse en la aplicacion de Mercado Pago.
+Publicar la URL no valida la firma, la entrega ni un ciclo de cobro real.
+
+Render Free se suspende tras 15 minutos sin trafico y comparte 750 horas mensuales
+con los otros servicios gratuitos del workspace. Los cron del proceso no ejecutan
+tareas mientras duerme. Esto no modifica la renovacion mensual del proveedor,
+pero no garantiza recordatorios, conciliacion o reintentos a horario. No activar
+un plan pago ni agregar trafico artificial para evitar la suspension.
 
 ## Backend en Google Cloud Run
 

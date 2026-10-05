@@ -113,6 +113,7 @@ const envSchema = z.object({
   GCP_REGION: z.string().default('us-central1'),
 
   // Seguridad
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   JWT_SECRET: z.string().min(16, 'La clave JWT debe tener al menos 16 caracteres').default('ofiai-dev-jwt-secret-key-latam-2026'),
   CORS_ORIGINS: z
     .string()
@@ -145,10 +146,17 @@ const envSchema = z.object({
     'MERCADOPAGO_WEBHOOK_SECRET',
     'RESEND_API_KEY',
     'RESEND_FROM_EMAIL',
-    'WHATSAPP_TOKEN',
-    'WHATSAPP_PHONE_ID',
     'JWT_SECRET',
   ].forEach((campo) => requerir(campo as keyof typeof env));
+
+  if (Boolean(env.WHATSAPP_TOKEN) !== Boolean(env.WHATSAPP_PHONE_ID)) {
+    ctx.addIssue({ code: 'custom', path: ['WHATSAPP_TOKEN'],
+      message: 'Configura ambas credenciales de WhatsApp o deja ambas vacias para deshabilitarlo.' });
+  }
+  if (env.WHATSAPP_PHONE_ID && !/^\d{8,30}$/.test(env.WHATSAPP_PHONE_ID)) {
+    ctx.addIssue({ code: 'custom', path: ['WHATSAPP_PHONE_ID'],
+      message: 'WhatsApp requiere un identificador numerico real, no un valor de ejemplo.' });
+  }
 
   if (!env.GROQ_API_KEY && !(env.AI_LEGACY_FALLBACK_ENABLED && (env.DEEPSEEK_API_KEY || env.GEMINI_API_KEY))) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['GROQ_API_KEY'],

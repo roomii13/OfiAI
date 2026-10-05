@@ -14,6 +14,8 @@ import { errorMiddleware } from './middleware/error.middleware';
 import apiRoutes from "./routes";
 
 const app: Application = express();
+// Confiar solo en los saltos de proxy verificados para cada alojamiento.
+app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
 /**
  * Valida orígenes CORS contra la configuración del ambiente.
