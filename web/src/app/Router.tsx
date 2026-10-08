@@ -213,6 +213,7 @@ function LoginPage() {
         </button>
       </form>
 
+      {demoAccessEnabled && <p className="mt-5 text-sm text-gray-600">Demo del hackatón: ingresá con las credenciales de referencia o elegí un rol. Datos ficticios, solo lectura.</p>}
       {demoAccessEnabled && (
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
           <button className="ofi-btn-secondary justify-center" type="button" onClick={() => handleDemo('empresa')}>

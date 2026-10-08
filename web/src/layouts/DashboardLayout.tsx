@@ -246,6 +246,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </header>
 
         <main className="ofi-workspace-content mx-auto min-h-[calc(100vh-4rem)] max-w-screen-2xl p-4 sm:p-6 lg:p-8">
+          {user?.id.startsWith("demo-") && (
+            <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="note">
+              <strong>Demo del hackatón</strong> · Datos ficticios · Solo lectura. Las acciones sobre cuentas, pagos e IA requieren una cuenta real.
+            </div>
+          )}
           {children}
         </main>
       </div>

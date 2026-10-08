@@ -19,6 +19,7 @@ import { getIdToken, onIdTokenChanged, signInWithCustomToken, signOut } from "fi
 import { api, setAuthToken } from "../lib/api/client";
 import { configuracion } from "../lib/config";
 import { auth } from "../lib/firebase";
+import { authenticateDemo } from "../lib/api/demo";
 
 /**
  * Roles soportados por OfiAI en backend, web y mobile.
@@ -272,6 +273,11 @@ export function AuthProvider({
   }, [commitSession]);
 
   const login = useCallback(async (credentials: LoginCredentials): Promise<void> => {
+    const demo = authenticateDemo(credentials.email, credentials.password);
+    if (demo) {
+      commitSession({ user: buildDemoUser(demo), token: "demo-token-" + demo });
+      return;
+    }
     setLoading(true);
     try {
       const response = await api.post<ApiEnvelope<BackendAuthPayload>>("/auth/login", credentials);
@@ -337,7 +343,7 @@ export function AuthProvider({
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
-    if (token) {
+    if (token && !token.startsWith("demo-token-")) {
       await api.post<ApiEnvelope<unknown>>("/auth/logout", {}).catch(() => undefined);
     }
 

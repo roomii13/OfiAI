@@ -6,6 +6,7 @@
  */
 import { configuracion } from "../config";
 import { auth } from "../firebase";
+import { demoResponse, demoRole } from "./demo";
 
 const API_BASE_URL = configuracion.api.baseUrl;
 const MAX_RETRIES = 1;
@@ -82,6 +83,8 @@ export const apiClient = async <T>(
   opciones: OpcionesRequest = {}
 ): Promise<T> => {
   const { token, ...fetchOpciones } = opciones;
+  const role = demoRole(token ?? currentAuthToken);
+  if (role) return demoResponse(endpoint, opciones.method ?? "GET", role) as T;
   const request: RequestInit = {
     ...fetchOpciones,
     headers: await buildHeaders(fetchOpciones.headers, token),
