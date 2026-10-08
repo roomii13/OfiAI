@@ -11,6 +11,14 @@ import { authService } from '../services/auth.service';
 
 /** Adapta solicitudes de autenticacion y cuenta al servicio. */
 class AuthController {
+  /** Registra una persona que contrata, sin exigir una empresa ni una suscripcion. */
+  registerCitizen = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const resultado = await authService.registerCitizen(req.body);
+      res.status(201).json({ exito: true, mensaje: 'Cuenta particular creada.', datos: resultado });
+    } catch (error) { next(error); }
+  };
+
   /** Actualiza preferencias de notificacion de la cuenta autenticada. */
   updatePreferences = async (req: RequestAutenticada, res: Response, next: NextFunction): Promise<void> => {
     try {

@@ -27,6 +27,7 @@ export class CoordinatorService {
       matchingRunId: w.matchingRunId, pricingEstimateId: w.pricingEstimateId, pricingInsufficient: w.pricingInsufficient,
       offer: w.offer, schedule: w.schedule, completionRequested: w.completionRequested,
       createdAt: w.createdAt, updatedAt: w.updatedAt,
+      charges: w.charges ?? null,
     } : null;
     return { job: w && participant === 'profesional' ? w.jobSnapshot : publicMatchingJob(job), workflow, role: participant,
       advice: workflow ? coordinatorAgent.decide(workflow, participant) : {

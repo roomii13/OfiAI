@@ -44,10 +44,10 @@ it('permite catalogo por audiencia sin exponer configuracion privada', async () 
   expect(result.body.datos).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'empresa', priceUsd: 20 })]));
   expect(JSON.stringify(result.body)).not.toContain('test-only');
 });
-it('expone el precio mensual PRO de USD3 en el catalogo profesional', async () => {
+it('ofrece solo cuenta gratuita permanente para profesionales', async () => {
   const result = await request('/plans?audience=profesional', '');
   expect(result.status).toBe(200);
-  expect(result.body.datos).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'profesional', priceUsd: 3 })]));
+  expect(result.body.datos).toEqual([expect.objectContaining({ id: 'gratuito', priceUsd: 0 })]);
 });
 it('exige autenticacion para datos financieros', async () => {
   expect((await request('/billing', '')).status).toBe(401);

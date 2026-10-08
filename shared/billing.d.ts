@@ -1,6 +1,12 @@
 /** @archivo billing.d.ts @descripcion Contratos comerciales publicos, sin secretos ni datos de tarjetas. */
 export type BillingPlanId = 'gratuito' | 'profesional' | 'empresa' | 'business_pro' | 'enterprise' | 'pro_plus';
-export type BillingAudience = 'empresa' | 'profesional';
+export type BillingAudience = 'empresa' | 'profesional' | 'particular';
+/** Desglose acordado; no representa un cobro ni un deposito en custodia. */
+export interface ContractCharges {
+  policyVersion: string; quoteId: string; currency: string; basisPoints: number;
+  professionalAmountMinor: number; feeMinor: number; contractorTotalMinor: number;
+  payer: 'contractor'; collectionEnabled: false; protectionEnabled: false;
+}
 /** Cotizacion publica aplicada al importe del plan; nunca contiene credenciales. */
 export interface BillingExchangeRate {
   source: 'mercadopago' | 'manual';

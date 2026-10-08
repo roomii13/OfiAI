@@ -41,6 +41,7 @@ import { JobMatchesScreen } from './JobMatchesScreen';
 import { JobPricingScreen } from './JobPricingScreen';
 import { CoordinatorScreen } from './CoordinatorScreen';
 import { JobCoordinatorScreen } from './JobCoordinatorScreen';
+import { MobileSettlementsPanel, MobileSettlementAccount } from './SettlementPanels';
 import { SubscriptionsScreen } from './SubscriptionsScreen';
 import { AgentOperationsScreen } from './AgentOperationsScreen';
 
@@ -205,9 +206,10 @@ function LoginScreen({ navigation }: NativeStackScreenProps<AuthStackParamList, 
  * Pantalla de registro móvil para empresas y profesionales.
  */
 function RegisterScreen({ route }: NativeStackScreenProps<AuthStackParamList, 'Registro'>) {
-  const { registrarEmpresa, registrarProfesional, cargando } = useAuthMobile();
-  const [rol, setRol] = useState<Exclude<RolUsuario, 'admin'>>(route.params?.rol ?? 'empresa');
+  const { registrarEmpresa, registrarProfesional, registrarParticular, cargando } = useAuthMobile();
+  const [rol, setRol] = useState<Exclude<RolUsuario, 'admin'> | 'particular'>(route.params?.rol ?? 'particular');
   const [nombre, setNombre] = useState('');
+  const [apellido, setApellido] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [ciudad, setCiudad] = useState('');
@@ -217,7 +219,12 @@ function RegisterScreen({ route }: NativeStackScreenProps<AuthStackParamList, 'R
    * Envía el registro al endpoint correspondiente al rol elegido.
    */
   async function handleRegister(): Promise<void> {
+    if (cargando) return;
     try {
+      if (rol === 'particular') {
+        await registrarParticular({ email, password, nombre, apellido, pais: 'AR', ciudad });
+        return;
+      }
       if (rol === 'empresa') {
         const empresa: RegistroEmpresaMobile = {
           email,
@@ -238,7 +245,7 @@ function RegisterScreen({ route }: NativeStackScreenProps<AuthStackParamList, 'R
         email,
         password,
         nombre,
-        apellido: 'OfiAI',
+        apellido,
         pais: 'AR',
         especialidades: parseCsv(especialidades),
         categorias: parseCsv(especialidades),
@@ -256,17 +263,22 @@ function RegisterScreen({ route }: NativeStackScreenProps<AuthStackParamList, 'R
     <ScreenContainer>
       <Text style={styles.title}>Crear cuenta</Text>
       <View style={styles.inlineButtons}>
+        <SmallButton label="Particular" active={rol === 'particular'} onPress={() => setRol('particular')} />
         <SmallButton label="Empresa" active={rol === 'empresa'} onPress={() => setRol('empresa')} />
         <SmallButton label="Profesional" active={rol === 'profesional'} onPress={() => setRol('profesional')} />
       </View>
-      <Section title={rol === 'empresa' ? 'Datos de empresa' : 'Datos profesionales'}>
+      <Section title={rol === 'empresa' ? 'Datos de empresa' : rol === 'particular' ? 'Cuenta particular gratuita' : 'Perfil profesional gratuito'}>
         <Field label={rol === 'empresa' ? 'Empresa o contacto' : 'Nombre'} value={nombre} onChangeText={setNombre} />
+        {rol !== 'empresa' && <Field label="Apellido" value={apellido} onChangeText={setApellido} />}
         <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
         <Field label="Contraseña" value={password} onChangeText={setPassword} secureTextEntry />
         <Field label="Ciudad" value={ciudad} onChangeText={setCiudad} />
         {rol === 'profesional' && (
           <Field label="Especialidades" value={especialidades} onChangeText={setEspecialidades} />
         )}
+        {rol !== 'empresa' && <Text>{rol === 'particular'
+          ? 'Gratis para siempre. Se suma un 10% al contratante por contratacion efectiva en OfiAI.'
+          : 'Perfil gratis para siempre. Sin comision OfiAI descontada de tus honorarios.'}</Text>}
         <PrimaryButton label={cargando ? 'Registrando...' : 'Crear cuenta'} onPress={() => void handleRegister()} disabled={cargando} />
       </Section>
     </ScreenContainer>
@@ -484,6 +496,7 @@ function SettingsScreen() {
       <PrimaryButton label="Guardar" disabled={pending || !resource.data} onPress={() => void save()} />
       {message ? <Text>{message}</Text> : null}
     </Section>
+    {resource.data?.usuario.rol==='profesional'&&<MobileSettlementAccount/>}
     <SecondaryButton label="Cerrar sesion" onPress={() => void cerrarSesion()} />
   </ScreenContainer>;
 }
@@ -518,6 +531,7 @@ function AdminScreen() {
   const { usuario } = useAuthMobile();
   const resource = useMobileResource<AdminUserData[]>(usuario?.rol === 'admin' ? '/admin/users' : null);
   return <ScreenContainer><Text style={styles.title}>Administracion</Text>
+    <MobileSettlementsPanel/>
     <ResourceState resource={resource} />
     {resource.data?.length === 0 && <Text>Sin usuarios.</Text>}
     {resource.data?.map(user => <ListRow key={user.id} title={user.nombre} description={user.email} badge={user.activo ? user.rol : 'Suspendido'} />)}

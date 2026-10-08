@@ -10,6 +10,11 @@ import type { MatchingSelection } from '../../../shared/matching';
 import { transitionCoordinator } from '../ai/tools/coordinator.tool';
 import { COORDINATOR_PROMPT_VERSION } from '../ai/prompts/coordinator.prompt';
 import { coordinatorEvent } from '../events/coordinator.event';
+import { contractCharges } from '../utils/billing';
+import { PROTECTED_COLLECTIONS } from '../constants/protected-payments';
+import type { StoredProtectedContract } from '../models/protected-contract.model';
+import { transitionProtectedWork } from '../domain/jobs/protected-contract';
+import { ProtectedContractRepository } from './protected-contract.repository';
 import type { Trabajo } from '../models/Job';
 import type { Empresa } from '../models/Company';
 import type { Profesional } from '../models/Professional';
@@ -172,12 +177,16 @@ export class CoordinatorRepository {
       if (command.action !== 'cancel' && (!isMatchingActive(professional) || company.activo === false))
         throw new ApiError('Uno de los participantes ya no esta habilitado.', 409);
       const next: StoredCoordinator = { ...w, ...transitionCoordinator(w, role, command) };
+      if (command.quote) next.charges = contractCharges(command.quote.amount, command.quote.currency, command.quote.id);
       const oldProposalRef = w.offer ? this.db.collection(C.PROPUESTAS).doc(w.id + '_' + w.offer.quote.id) : null;
       const oldProposal = oldProposalRef ? await tx.get(oldProposalRef) : null;
       const quoteRef = command.quote ? this.db.collection(C.PROPUESTAS).doc(w.id + '_' + command.quote.id) : null;
       const quoteDoc = quoteRef ? await tx.get(quoteRef) : null;
       const versionRef = command.quote ? jobRef.collection(C.COORDINATOR_OFFERS).doc(w.id + '_' + command.quote.id) : null;
       const version = versionRef ? await tx.get(versionRef) : null;
+      const protectedRef = this.db.collection(PROTECTED_COLLECTIONS.contracts).doc(id);
+      const protectedContract = (await tx.get(protectedRef)).data() as StoredProtectedContract | undefined;
+      const nextProtected = protectedContract ? transitionProtectedWork(protectedContract, w, next, command) : null;
       const matchingRef = jobRef.collection(C.MATCHING).doc('current');
       const matching = command.action === 'cancel' ? await tx.get(matchingRef) : null;
       const matchRef = jobRef.collection(C.MATCHES).doc(w.professionalId);
@@ -227,6 +236,11 @@ export class CoordinatorRepository {
         workflowId: w.id, revision: next.revision, quote: command.quote, proposedBy: role, at: next.updatedAt,
       });
       this.save(tx, next, job, w.state, command.action, role, uid, command.note ?? null, command);
+      if (nextProtected) {
+        tx.set(protectedRef, nextProtected);
+        new ProtectedContractRepository(this.db).audit(tx, id, { uid, rol: role }, command.action,
+          { workState: protectedContract!.workState }, { workState: nextProtected.workState }, command.idempotencyKey);
+      }
       tx.update(jobRef, patch);
       tx.create(receipt, { kind: 'command', hash, actorUid: uid, workflowId: w.id, revision: next.revision, at: next.updatedAt });
       if (command.action !== 'contact') this.notify(tx, next, role === 'empresa' ? w.professionalUid : w.companyUid,

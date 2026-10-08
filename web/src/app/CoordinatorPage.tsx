@@ -11,6 +11,9 @@ import { coordinatorActions, coordinatorDate, coordinatorStates, quoteDate } fro
 import type { CoordinatorAction, CoordinatorList, CoordinatorWorkflow } from '../../../shared/coordinator';
 import './pricing.css';
 import './coordinator.css';
+import { JobReviewPanel } from './JobReviewPanel';
+import { ContractChargesPanel } from './ContractChargesPanel';
+import { ContractAgreementPanel } from './ContractAgreementPanel';
 
 const coverage = { included: 'Incluidos', excluded: 'Excluidos', unknown: 'Por confirmar' };
 const units = { hour: 'Horas de trabajo', m2: 'Metros cuadrados', unit: 'Unidades', job: 'Trabajo completo' };
@@ -54,7 +57,7 @@ function CoordinatorDetail({ jobId }: { jobId: string }) {
           <strong>{workflow ? coordinatorStates[workflow.state] : 'Sin coordinacion iniciada'}</strong></div></section>
       <section className="coordinator-section" aria-label="Siguiente paso"><h2>Siguiente paso</h2><p>{view.advice.message}</p>
         {view.advice.waitingFor && <p>Esperando a: {view.advice.waitingFor === 'empresa' ? 'la empresa' : 'el profesional'}.</p>}
-        <p>Las notificaciones son internas de OfiAI. No se envian emails ni WhatsApp y no se realizan cobros.</p>
+        <p>Las notificaciones de coordinacion son internas de OfiAI. Aceptar o finalizar un trabajo no equivale a confirmar un pago.</p>
         {(!workflow || workflow.state === 'CANCELLED') && (canStart(view) ? <form onSubmit={event => {
           event.preventDefault(); setSaved('');
           if (acknowledged) void coordinator.start(acknowledged).then(ok => { if (ok) setSaved('Coordinacion iniciada.'); });
@@ -67,11 +70,14 @@ function CoordinatorDetail({ jobId }: { jobId: string }) {
       </section>
       {workflow && <>
         <section className="coordinator-section" aria-label="Participantes"><h2>Acuerdo con {workflow.professionalName}</h2>
-          <p>Tu rol: {view.role === 'empresa' ? 'Empresa' : 'Profesional'} · Revision {workflow.revision}</p>
+          <p>Tu rol: {view.role === 'empresa' ? 'Contratante' : 'Profesional'} · Revision {workflow.revision}</p>
           {workflow.pricingInsufficient && <p className="coordinator-warning">La estimacion tiene informacion insuficiente. Es posible solicitar un presupuesto, pero no hay un precio estimado confirmado.</p>}
           {workflow.completionRequested && <p>{workflow.state === 'COMPLETED' ? 'Finalizacion confirmada por la empresa.' : 'El profesional solicito confirmar la finalizacion.'}</p>}
         </section>
         <Agreement workflow={workflow} />
+        {!workflow.offer?.accepted&&<ContractChargesPanel charges={workflow.charges} />}
+        {workflow.offer?.accepted && <ContractAgreementPanel key={workflow.id+':'+workflow.revision} jobId={jobId} canPrepare={workflow.state!=='COMPLETED'}/>}
+        {workflow.state === 'COMPLETED' && <JobReviewPanel jobId={jobId} />}
         <section className="coordinator-section" aria-label="Acciones disponibles"><h2>Acciones disponibles</h2>
           {!actions.length && <p>No hay acciones disponibles para tu rol en este momento.</p>}
           {view.role === 'profesional' && workflow.state === 'CONFIRMED' && workflow.schedule && Date.parse(workflow.schedule.startsAt) > now

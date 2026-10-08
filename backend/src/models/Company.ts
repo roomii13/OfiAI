@@ -9,6 +9,8 @@ import { CodigoPais } from './User';
 export interface Empresa {
   id: string;
   usuarioId: string;          // Referencia al documento de usuario en la colección 'users'
+  /** Distingue organizaciones de personas sin cambiar ownership de trabajos existentes. */
+  tipoCuenta?: 'empresa' | 'particular';
   nombreEmpresa: string;
   rut?: string;               // RUT/RFC/NIT/RUC según el país de Latinoamérica
   industria: string;

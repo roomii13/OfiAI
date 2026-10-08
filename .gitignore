@@ -19,6 +19,9 @@ ios/
 .env.local
 .env.*.local
 .env.production
+.dev.vars
+.dev.vars.*
+.wrangler/
 
 # Logs
 *.log

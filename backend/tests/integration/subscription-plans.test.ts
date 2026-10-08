@@ -8,7 +8,7 @@ describe('planes de suscripción', () => {
   it('expone planes gratuito, profesional y empresa con precios esperados', () => {
     expect(Object.keys(PLANES_POR_ID)).toEqual(['gratuito', 'profesional', 'empresa']);
     expect(obtenerPlanSuscripcion('gratuito').precioMensual).toBe(0);
-    expect(obtenerPlanSuscripcion('profesional').precioMensual).toBe(9900);
+    expect(obtenerPlanSuscripcion('profesional').precioMensual).toBe(0);
     expect(obtenerPlanSuscripcion('empresa').precioMensual).toBe(39900);
   });
 

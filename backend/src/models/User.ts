@@ -17,6 +17,8 @@ export interface Usuario {
   telefono?: string;
   fotoPerfil?: string;      // URL en Firebase Storage
   rol: RolUsuario;
+  /** Los particulares usan permisos de contratante, sin una suscripcion empresarial. */
+  tipoCuenta?: 'empresa' | 'particular' | 'profesional' | 'admin';
   pais: CodigoPais;
   idioma: 'es-LA' | 'es-MX' | 'es-CO' | 'es-CL' | 'es-AR' | 'es-PE' | 'en-US';
   emailVerificado: boolean;

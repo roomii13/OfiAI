@@ -6,17 +6,23 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { pricingRoutes } from './pricing.routes';
 import { coordinatorRoutes } from './coordinator.routes';
+import { protectedContractRoutes } from './protected-contract.routes';
 import { matchingController } from '../controllers/matching.controller';
 import { matchingCommandSchema, matchingSelectionSchema, matchingViewSchema } from '../validators/matching.validator';
 import { limitadorIA } from '../middleware/rateLimit.middleware';
 import { ApiError } from '../middleware/error.middleware';
 import { jobsController } from '../controllers/jobs.controller';
+import { reviewController } from '../controllers/review.controller';
 import { verificarAutenticacion } from '../middleware/auth.middleware';
 import { requerirRol } from '../middleware/role.middleware';
 import { validarBody, validarQuery } from '../middleware/validation.middleware';
 import { esquemaActualizarTrabajo, esquemaCrearTrabajo, esquemaFiltrosTrabajo } from '../validators/job.validator';
 
 const router = Router();
+router.use('/:id/contract', protectedContractRoutes);
+/** Resenas verificadas de los participantes; la identidad no viene del body. */
+router.get('/:id/review', verificarAutenticacion, reviewController.get);
+router.post('/:id/review', verificarAutenticacion, reviewController.create);
 router.use('/:id/coordinator', coordinatorRoutes);
 router.use('/:id/pricing', pricingRoutes);
 const matching = Router({ mergeParams: true });

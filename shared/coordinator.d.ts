@@ -1,6 +1,7 @@
 /** @archivo coordinator.d.ts @descripcion Contrato de coordinacion compartido, sin secretos ni identidades privadas. */
 import type { MatchingJob } from './matching';
 import type { PricingQuote } from './pricing';
+import type { ContractCharges } from './billing';
 /** Estados persistentes del acuerdo bilateral. */
 export type CoordinatorState = 'MATCHED' | 'PROFESSIONAL_SELECTED' | 'CONTACT_PENDING' | 'CONTACTED'
   | 'PROFESSIONAL_RESPONDED' | 'QUOTE_REQUESTED' | 'QUOTE_RECEIVED' | 'COMPANY_REVIEW' | 'NEGOTIATION'
@@ -29,6 +30,8 @@ export interface CoordinatorWorkflow {
   matchingRunId: string; pricingEstimateId: string; pricingInsufficient: boolean;
   offer: CoordinatorOffer | null; schedule: CoordinatorSchedule | null;
   completionRequested: boolean; createdAt: string; updatedAt: string;
+  /** Los acuerdos anteriores pueden carecer de desglose; no se les impone retroactivamente. */
+  charges?: ContractCharges | null;
 }
 /** Auditoria bilateral: actor como rol, nunca tokens ni datos de contacto. */
 export interface CoordinatorHistory { revision: number; action: string; from: CoordinatorState; to: CoordinatorState; actor: CoordinatorRole | 'system'; at: string; note: string | null }

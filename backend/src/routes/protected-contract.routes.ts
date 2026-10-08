@@ -1,0 +1,23 @@
+/** @archivo protected-contract.routes.ts @descripcion Endpoints autenticados; grants financieros verificados en cada caso de uso. */
+import { Router } from 'express';
+import { verificarAutenticacion } from '../middleware/auth.middleware';
+import { limitadorIA } from '../middleware/rateLimit.middleware';
+import { protectedContractHandler as handler, protectedContractError } from '../controllers/protected-contract.controller';
+export const protectedContractRoutes = Router({ mergeParams:true });
+protectedContractRoutes.use(verificarAutenticacion);
+protectedContractRoutes.get('/',handler('get'));
+protectedContractRoutes.post('/',limitadorIA,handler('prepare'));
+protectedContractRoutes.get('/entries',handler('entries'));
+protectedContractRoutes.get('/audit',handler('history'));
+protectedContractRoutes.post('/commands',limitadorIA,handler('command'));
+protectedContractRoutes.post('/advice',limitadorIA,handler('advice'));
+protectedContractRoutes.post('/evidence',limitadorIA,handler('upload'));
+protectedContractRoutes.get('/evidence/:evidenceId',handler('download'));
+protectedContractRoutes.use(protectedContractError);
+export const resolutionRoutes = Router();
+resolutionRoutes.use(verificarAutenticacion);
+resolutionRoutes.get('/',handler('list'));
+resolutionRoutes.get('/policy/:currency',handler('getPolicy'));
+resolutionRoutes.put('/policy',limitadorIA,handler('policy'));
+resolutionRoutes.put('/grants',limitadorIA,handler('grant'));
+resolutionRoutes.use(protectedContractError);

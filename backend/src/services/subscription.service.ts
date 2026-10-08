@@ -11,10 +11,10 @@ import type { RolUsuario } from '../models/User';
 import type { BillingAudience, BillingOverview, CommercialPlan } from '../../../shared/billing';
 import { env } from '../config/env';
 import { billingExchangeService } from './billing-exchange.service';
-import { BILLING_CATALOG_VERSION, COMMERCIAL_PLANS } from '../constants/billing';
+import { BILLING_CATALOG_VERSION, COMMERCIAL_PLANS, CONTRACT_FEE_BASIS_POINTS } from '../constants/billing';
 import { amountMinor, calculateTransactionFee, hasPaidAccess, nextBillingMonth } from '../utils/billing';
 import type { DatosCancelarSuscripcion, DatosSuscribirse } from '../validators/subscription.validator';
-import { subscriptionRepository } from '../repositories/subscription.repository';
+import { subscriptionRepository, billingAudience } from '../repositories/subscription.repository';
 import { userRepository } from '../repositories/user.repository';
 import {
   cancelarPreapprovalMercadoPago, crearPreapprovalMercadoPago, mercadoPagoDisponible,
@@ -30,8 +30,9 @@ export interface ResultadoHistorialSuscripcion { suscripciones: Suscripcion[]; e
 export class SubscriptionService {
   /** Precios de nuevos contratos; mantiene IDs y no modifica suscripciones anteriores. */
   async listarPlanes(audience?: BillingAudience): Promise<CommercialPlan[]> {
-    const exchangeRate = await billingExchangeService.get();
-    return COMMERCIAL_PLANS.filter(plan => !audience || plan.audience === audience).map(base => {
+    const plans = COMMERCIAL_PLANS.filter(plan => !audience || plan.audience === audience);
+    const exchangeRate = plans.some(plan => plan.priceUsd > 0) ? await billingExchangeService.get() : null;
+    return plans.map(base => {
       const override = base.id === 'gratuito' ? undefined : env.BILLING_CATALOG_JSON[base.id];
       const priceUsd = override?.priceUsd ?? base.priceUsd; const limits = override?.limits ?? base.limits;
       const localPrice = priceUsd === 0 ? 0 : exchangeRate ? amountMinor(priceUsd * exchangeRate.rate) / 100 : null;
@@ -46,7 +47,8 @@ export class SubscriptionService {
 
   /** Inicia o recupera el unico checkout pendiente del titular. */
   async crearCheckout(uid: string, role: RolUsuario, data: DatosSuscribirse): Promise<ResultadoCheckoutSuscripcion> {
-    const plan = await this.plan(data.plan, role);
+    const audience = await this.audience(uid, role);
+    const plan = await this.plan(data.plan, audience);
     return subscriptionRepository.withAccountLock(uid, async () => {
       const current = await this.obtenerActual(uid);
       let pending = await subscriptionRepository.pending(uid);
@@ -63,7 +65,7 @@ export class SubscriptionService {
       const user = await userRepository.findById(uid);
       if (!user) throw new ApiError('Usuario no encontrado para crear suscripcion.', 404);
       const backUrl = this.returnUrl(data.successUrl);
-      if (!pending) { pending = this.initial(uid, role as BillingAudience, plan); await subscriptionRepository.createForAccount(pending); }
+      if (!pending) { pending = this.initial(uid, audience, plan); await subscriptionRepository.createForAccount(pending); }
       if (pending.plan === 'gratuito') return { suscripcion: pending,
         checkout: { proveedor: 'interno', requierePagoExterno: false, estado: 'no_requiere_pago' } };
       if (!pending.mercadoPagoPreapprovalId) {
@@ -108,14 +110,15 @@ export class SubscriptionService {
     const pending = await subscriptionRepository.pending(uid);
     return { pendingCheckout: pending ? { id: pending.id, plan: pending.plan } : null,
       entitlements, payments, stores: { products, purchasesEnabled: false },
-      transactionFee: { configured: env.BILLING_TRANSACTION_FEE_BPS !== undefined,
-        basisPoints: env.BILLING_TRANSACTION_FEE_BPS ?? null, collectionEnabled: false } };
+      transactionFee: { configured: true, basisPoints: CONTRACT_FEE_BASIS_POINTS, collectionEnabled: false } };
   }
 
   /** Comision indicativa: no debita ni contabiliza ingresos ficticios. */
-  feePreview(grossMinor: number): { feeMinor: number; collectionEnabled: false } {
-    if (env.BILLING_TRANSACTION_FEE_BPS === undefined) throw new ApiError('La comision comercial aun no fue configurada.', 503);
-    return { feeMinor: calculateTransactionFee(grossMinor, env.BILLING_TRANSACTION_FEE_BPS), collectionEnabled: false };
+  feePreview(grossMinor: number): { feeMinor: number; professionalAmountMinor: number; contractorTotalMinor: number; payer: 'contractor'; collectionEnabled: false } {
+    const feeMinor = calculateTransactionFee(grossMinor, CONTRACT_FEE_BASIS_POINTS);
+    if (!Number.isSafeInteger(grossMinor + feeMinor)) throw new ApiError('Importe invalido.', 400);
+    return { feeMinor, professionalAmountMinor: grossMinor, contractorTotalMinor: grossMinor + feeMinor,
+      payer: 'contractor', collectionEnabled: false };
   }
 
   /** Cancela debitos futuros, conservando por defecto el periodo pagado. */
@@ -152,7 +155,7 @@ export class SubscriptionService {
   /** Upgrade o downgrade al siguiente ciclo, sin prorrateo ni crear otro contrato. */
   async cambiarPlan(id: string, uid: string, role: RolUsuario, planId: PlanSuscripcion, expectedPriceMinor?: number): Promise<Suscripcion> {
     const owned = await this.obtenerSuscripcionPorId(id); this.validarPropietario(owned, uid, role);
-    const plan = await this.plan(planId, owned.rolUsuario);
+    const plan = await this.plan(planId, await this.audience(owned.usuarioId, owned.rolUsuario === 'profesional' ? 'profesional' : 'empresa'));
     return subscriptionRepository.withAccountLock(owned.usuarioId, async () => {
       const current = await this.obtenerSuscripcionPorId(id);
       if (plan.id === 'gratuito') return this.cancel(current, { cancelarAlFinalDelPeriodo: true });
@@ -254,13 +257,21 @@ export class SubscriptionService {
   }
 
   /** Rechaza planes de otra audiencia. */
-  private async plan(id: PlanSuscripcion, role: RolUsuario): Promise<CommercialPlan> {
+  private async plan(id: PlanSuscripcion, role: BillingAudience): Promise<CommercialPlan> {
     if (!COMMERCIAL_PLANS.some(item => item.id === id && item.audience === role)) {
       throw new ApiError('Ese plan no corresponde al tipo de cuenta.', 403);
     }
-    const plan = (await this.listarPlanes(role === 'admin' ? undefined : role)).find(item => item.id === id && item.audience === role);
+    const plan = (await this.listarPlanes(role)).find(item => item.id === id && item.audience === role);
     if (!plan) throw new ApiError('Ese plan no corresponde al tipo de cuenta.', 403);
     return plan;
+  }
+
+  /** Protege la gratuidad personal y profesional incluso ante peticiones manipuladas. */
+  private async audience(uid: string, role: RolUsuario): Promise<BillingAudience> {
+    if (role === 'admin') throw new ApiError('Ese plan no corresponde al tipo de cuenta.', 403);
+    const user = await userRepository.findById(uid);
+    if (!user || user.rol !== role || !user.activo) throw new ApiError('Cuenta no disponible.', 403);
+    return billingAudience(role, user);
   }
 
   /** El precio del cliente solo confirma consentimiento; nunca determina el importe a cobrar. */

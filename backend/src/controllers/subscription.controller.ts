@@ -21,7 +21,7 @@ class SubscriptionController {
       res.status(200).json({
         exito: true,
         mensaje: 'Planes de suscripción obtenidos correctamente.',
-        datos: await subscriptionService.listarPlanes(req.query.audience as 'empresa' | 'profesional' | undefined),
+        datos: await subscriptionService.listarPlanes(req.query.audience as 'empresa' | 'profesional' | 'particular' | undefined),
       });
     } catch (error) {
       next(error);

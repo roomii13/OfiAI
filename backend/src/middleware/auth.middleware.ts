@@ -20,6 +20,8 @@ export interface RequestAutenticada extends Request {
     email: string;
     rol: RolUsuario;
     emailVerificado: boolean;
+    secondFactor?: boolean;
+    authTime?: number;
   };
 }
 
@@ -60,7 +62,7 @@ export const verificarAutenticacion = async (
     const auth = getAuth();
     const tokenDecodificado = await auth.verifyIdToken(token, true);
 
-    // Extraer el rol desde custom claims o asignar 'profesional' por defecto
+    // Rol autoritativo de Firestore, no banderas de permisos enviadas por el cliente.
     const usuario = await userRepository.findById(tokenDecodificado.uid);
     if (!usuario || !usuario.activo || !['empresa', 'profesional', 'admin'].includes(usuario.rol)) {
       res.status(403).json({ exito: false, mensaje: 'Cuenta deshabilitada o sin un rol valido.' });
@@ -73,6 +75,8 @@ export const verificarAutenticacion = async (
       email: tokenDecodificado.email || '',
       rol: rolUsuario,
       emailVerificado: Boolean(tokenDecodificado.email_verified),
+      secondFactor: Boolean(tokenDecodificado.firebase?.sign_in_second_factor),
+      authTime: tokenDecodificado.auth_time,
     };
 
     next();

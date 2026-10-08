@@ -10,7 +10,7 @@ export type EstadoSuscripcion = 'activa' | 'vencida' | 'cancelada' | 'trial' | '
 export interface Suscripcion {
   id: string;
   usuarioId: string;
-  rolUsuario: 'empresa' | 'profesional';
+  rolUsuario: import('../../../shared/billing').BillingAudience;
   plan: PlanSuscripcion;
   estado: EstadoSuscripcion;
   mercadoPagoPreapprovalId?: string;

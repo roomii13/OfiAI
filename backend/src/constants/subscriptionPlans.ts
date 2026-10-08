@@ -14,21 +14,21 @@ export const PLANES_SUSCRIPCION = {
       consultasIA: 5,
     },
     limitesProfesional: {
-      propuestasEnviadas: 3,
+      propuestasEnviadas: -1,
       consultasIA: 5,
     },
   },
   PROFESIONAL: {
     id: 'profesional',
-    nombre: 'Profesional',
-    precioMensual: 9900,
+    nombre: 'Profesional gratuito',
+    precioMensual: 0,
     limitesEmpresa: {
       trabajosPublicados: 5,
       perfilesVisibles: 40,
       consultasIA: 40,
     },
     limitesProfesional: {
-      propuestasEnviadas: 50,
+      propuestasEnviadas: -1,
       consultasIA: 50,
     },
   },

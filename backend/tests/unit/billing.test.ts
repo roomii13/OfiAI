@@ -47,17 +47,16 @@ beforeEach(async () => {
 });
 afterEach(() => jest.useRealTimers());
 
-it('ofrece PRO a USD3 y planes empresa desde USD20 sin modificar los niveles superiores', async () => {
+it('deja profesionales gratuitos y conserva los planes empresa desde USD20', async () => {
   const companies = await service.listarPlanes('empresa');
   const professionals = await service.listarPlanes('profesional');
   expect(companies.map(p => p.nombre)).toEqual(['FREE', 'BUSINESS', 'BUSINESS PRO', 'ENTERPRISE']);
   expect(companies.map(p => p.priceUsd)).toEqual([0, 20, 79, 149]);
-  expect(professionals.map(p => p.priceUsd)).toEqual([0, 3, 59]);
+  expect(professionals.map(p => p.priceUsd)).toEqual([0]);
   expect(companies[1]).toMatchObject({ precioMensual: 20000, moneda: 'ARS' });
-  expect(professionals[1]).toMatchObject({ precioMensual: 3000, moneda: 'ARS' });
+  expect(professionals[0]).toMatchObject({ precioMensual: 0, moneda: 'ARS', limits: { propuestasEnviadas: -1 } });
 });
 it.each([
-  { plan: 'profesional', priceUsd: 3 }, { plan: 'pro_plus', priceUsd: 3 },
   { plan: 'empresa', priceUsd: 20 }, { plan: 'business_pro', priceUsd: 20 }, { plan: 'enterprise', priceUsd: 20 },
 ])('valida el minimo comercial de $plan sin imponer el antiguo piso de USD35', ({ plan, priceUsd }) => {
   const limits = { trabajosPublicados: 1, propuestasEnviadas: 1, consultasIA: 1, perfilesVisibles: 1 };
@@ -202,10 +201,30 @@ it('una pausa externa no impide reanudar la renovacion al volver a authorized', 
   await service.procesarWebhookMercadoPago({ type: 'subscription_preapproval', data: { id: 'pre-1' } }, 'signature', 'request');
   expect((await repository.findById('sub-1'))?.renovacionAutomatica).toBe(true);
 });
-it('comisiones sin floats ni cobros cuando no hay una politica aprobada', () => {
-  expect(calculateTransactionFee(101, 500)).toBe(5);
+it('adiciona 10% al contratante, sin disminuir los honorarios ni ejecutar cobros', () => {
+  expect(calculateTransactionFee(101, 1000)).toBe(10);
   expect(() => calculateTransactionFee(100, 10001)).toThrow();
-  expect(() => service.feePreview(10000)).toThrow('aun no fue configurada');
+  expect(service.feePreview(10000)).toEqual({ feeMinor: 1000, professionalAmountMinor: 10000,
+    contractorTotalMinor: 11000, payer: 'contractor', collectionEnabled: false });
+});
+
+it('particular no puede comprar planes empresa ni recibir sus cuotas por un parametro manipulado', async () => {
+  await db.collection('users').doc('company-a').update({ tipoCuenta: 'particular' });
+  expect((await service.listarPlanes('particular')).map(plan => plan.priceUsd)).toEqual([0]);
+  await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor: 2000000 }))
+    .rejects.toMatchObject({ codigoEstado: 403 });
+  for (let i = 0; i < 3; i++) await firestore.runTransaction(tx => repository.consumeQuota(tx, 'company-a', 'empresa', 'trabajosPublicados'));
+  expect((await repository.entitlements('company-a', 'empresa')).limits.trabajosPublicados).toBe(-1);
+  expect(provider.crearPreapprovalMercadoPago).not.toHaveBeenCalled();
+});
+
+it('los overrides antiguos no vuelven pagos los perfiles profesionales', async () => {
+  env.BILLING_CATALOG_JSON = { profesional: { priceUsd: 99, limits: { trabajosPublicados: 0, propuestasEnviadas: 1, consultasIA: 5, perfilesVisibles: 5 } } };
+  await db.collection('users').doc('pro-a').set({ id: 'pro-a', rol: 'profesional', activo: true });
+  await expect(service.crearCheckout('pro-a', 'profesional', { plan: 'profesional' })).rejects.toMatchObject({ codigoEstado: 403 });
+  expect((await service.listarPlanes('profesional'))[0].priceUsd).toBe(0);
+  expect((await repository.entitlements('pro-a', 'profesional')).paid).toBe(false);
+  expect(provider.crearPreapprovalMercadoPago).not.toHaveBeenCalled();
 });
 it.each([undefined, 1, 3500000])('no crea un contrato con importe sin confirmar o distinto: %s', async expectedPriceMinor => {
   await expect(service.crearCheckout('company-a', 'empresa', { plan: 'empresa', expectedPriceMinor })).rejects.toMatchObject({ codigoEstado: 409 });

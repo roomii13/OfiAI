@@ -7,6 +7,8 @@
 import { CodigoPais } from './User';
 
 export interface Profesional {
+  /** Suma acumulada para actualizar el promedio sin perdida de precision. */
+  sumaCalificaciones?: number;
   /** Campos opcionales de matching; status solo puede administrarse desde backend. */
   status?: 'active' | 'inactive' | 'suspended';
   activo?: boolean;

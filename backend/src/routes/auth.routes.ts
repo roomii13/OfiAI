@@ -13,12 +13,16 @@ import { limitadorAuth } from '../middleware/rateLimit.middleware';
 import { validarBody } from '../middleware/validation.middleware';
 import {
   esquemaRegistroEmpresa,
+  esquemaRegistroParticular,
   esquemaRegistroProfesional,
   esquemaLogin,
   esquemaRecuperarPassword,
 } from '../validators/auth.validator';
 
 const router = Router();
+
+/** Registro gratuito para personas que necesitan contratar un servicio. */
+router.post('/register/citizen', limitadorAuth, validarBody(esquemaRegistroParticular), authController.registerCitizen);
 
 /** PUT /auth/preferences actualiza unicamente canales permitidos. */
 router.put('/preferences', verificarAutenticacion, validarBody(z.object({

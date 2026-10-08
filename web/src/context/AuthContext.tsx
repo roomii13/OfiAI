@@ -37,6 +37,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  accountType?: UserRole | 'particular';
   country?: string;
   phone?: string;
   plan?: "gratuito" | "profesional" | "empresa";
@@ -80,6 +81,9 @@ export interface RegisterProfessionalInput extends LoginCredentials {
   telefono?: string;
 }
 
+/** Registro de una persona sin identidad societaria. */
+export type RegisterCitizenInput = Pick<RegisterProfessionalInput, 'email' | 'password' | 'nombre' | 'apellido' | 'pais' | 'ciudad' | 'telefono'>;
+
 /**
  * Estado y acciones expuestas a toda la aplicación autenticada.
  */
@@ -93,6 +97,7 @@ export interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   loginAsDemo: (role: UserRole) => void;
   registerCompany: (input: RegisterCompanyInput) => Promise<void>;
+  registerCitizen: (input: RegisterCitizenInput) => Promise<void>;
   registerProfessional: (input: RegisterProfessionalInput) => Promise<void>;
   recoverPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -109,6 +114,7 @@ interface BackendUser {
   apellido?: string;
   telefono?: string;
   rol: UserRole;
+  tipoCuenta?: UserRole | 'particular';
   pais?: string;
 }
 
@@ -141,6 +147,7 @@ function normalizeUser(user: BackendUser): AuthUser {
     name: displayName || user.email,
     email: user.email,
     role: user.rol,
+    accountType: user.tipoCuenta ?? user.rol,
     country: user.pais,
     phone: user.telefono,
   };
@@ -322,6 +329,16 @@ export function AuthProvider({
     }
   }, [commitSession]);
 
+  /** Conserva el intercambio Firebase y la restauracion de sesion del resto de cuentas. */
+  const registerCitizen = useCallback(async (input: RegisterCitizenInput): Promise<void> => {
+    setLoading(true);
+    try {
+      const payload = readApiData(await api.post<ApiEnvelope<BackendAuthPayload>>('/auth/register/citizen', input));
+      const sessionToken = await resolveSessionToken(payload.customToken);
+      commitSession({ user: normalizeUser(payload.usuario), token: sessionToken });
+    } finally { setLoading(false); }
+  }, [commitSession]);
+
   const registerProfessional = useCallback(async (input: RegisterProfessionalInput): Promise<void> => {
     setLoading(true);
     try {
@@ -366,6 +383,7 @@ export function AuthProvider({
     login,
     loginAsDemo,
     registerCompany,
+    registerCitizen,
     registerProfessional,
     recoverPassword,
     logout,
@@ -376,6 +394,7 @@ export function AuthProvider({
     login,
     loginAsDemo,
     registerCompany,
+    registerCitizen,
     registerProfessional,
     recoverPassword,
     logout,

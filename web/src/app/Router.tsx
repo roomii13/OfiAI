@@ -7,6 +7,7 @@
  */
 import { Fragment, type FormEvent, type ReactNode, useState } from 'react';
 import { SubscriptionBillingPanel } from './SubscriptionBillingPanel';
+import { CitizenRegisterPage } from './CitizenRegisterPage';
 import { AgentWorkspace } from './AgentWorkspace';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import {
@@ -32,6 +33,7 @@ import { IntakePage } from './IntakePage';
 import { JobMatchesPage } from './JobMatchesPage';
 import { JobPricingPage } from './JobPricingPage';
 import { CoordinatorPage, CoordinationInboxPage } from './CoordinatorPage';
+import { SettlementsPage, SettlementAccountForm } from './SettlementsPage';
 import {
   useAuth,
   type RegisterCompanyInput,
@@ -72,6 +74,7 @@ export function AppRouter() {
       <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><RegisterChoicePage /></GuestRoute>} />
       <Route path="/register/company" element={<GuestRoute><CompanyRegisterPage /></GuestRoute>} />
+      <Route path="/register/citizen" element={<GuestRoute><CitizenRegisterPage /></GuestRoute>} />
       <Route path="/register/professional" element={<GuestRoute><ProfessionalRegisterPage /></GuestRoute>} />
       <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
 
@@ -92,6 +95,7 @@ export function AppRouter() {
       <Route path="/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       <Route path="/admin" element={<RequireAuth roles={['admin']}><AdminPage /></RequireAuth>} />
+      <Route path="/admin/settlements" element={<RequireAuth roles={['admin']}><SettlementsPage /></RequireAuth>} />
       <Route path="/company/*" element={<Navigate to="/companies" replace />} />
       <Route path="/professional/*" element={<Navigate to="/professionals" replace />} />
       <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
@@ -253,6 +257,11 @@ function RegisterChoicePage() {
       </div>
 
       <div className="grid gap-4">
+        <Link className="rounded-lg border border-border bg-sky-50 p-5 transition hover:border-sky-400" to="/register/citizen">
+          <UserPlus className="h-6 w-6 text-sky-700" aria-hidden="true" />
+          <h2 className="mt-4 text-lg font-semibold">Soy particular</h2>
+          <p className="mt-1 text-sm text-gray-600">Profesionales para tu hogar y proyectos personales. Cuenta gratis para siempre.</p>
+        </Link>
         <Link className="rounded-lg border border-border bg-white p-5 transition hover:border-brand-300 hover:bg-brand-50" to="/register/company">
           <Building2 className="h-6 w-6 text-brand-700" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold">Registrar empresa</h2>
@@ -261,7 +270,7 @@ function RegisterChoicePage() {
         <Link className="rounded-lg border border-border bg-white p-5 transition hover:border-emerald-300 hover:bg-emerald-50" to="/register/professional">
           <UserPlus className="h-6 w-6 text-emerald-700" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold">Registrar profesional</h2>
-          <p className="mt-1 text-sm text-gray-600">Recibí oportunidades compatibles, administrá postulaciones y mejorá tu reputación.</p>
+          <p className="mt-1 text-sm text-gray-600">Perfil gratis para siempre, sin suscripcion ni comision OfiAI descontada de tus honorarios.</p>
         </Link>
       </div>
 
@@ -705,8 +714,10 @@ function AiPage() {
  * Vista de planes y checkout con Mercado Pago.
  */
 function SubscriptionsPage() {
-  const { role } = useAuth();
-  const available = useApiResource<PlanData[]>(role ? '/subscriptions/plans' + (role === 'admin' ? '' : '?audience=' + role) : null);
+  const { role, user } = useAuth();
+  const personal = user?.accountType === 'particular';
+  const freeAccount = personal || role === 'profesional';
+  const available = useApiResource<PlanData[]>(role ? '/subscriptions/plans' + (role === 'admin' ? '' : '?audience=' + (personal ? 'particular' : role)) : null);
   const current = useApiResource<SubscriptionData | null>('/subscriptions/me');
   const history = useApiResource<{ eventos: Array<{ id: string; descripcion: string }> }>('/subscriptions/history');
   const [status, setStatus] = useState('');
@@ -742,18 +753,20 @@ function SubscriptionsPage() {
 
   return (
     <DashboardLayout>
-      <PageHeader eyebrow="Suscripciones" title="Planes OfiAI" description="Suscripcion mensual con renovacion automatica" />
+      <PageHeader eyebrow={freeAccount ? 'Mi cuenta' : 'Suscripciones'} title={freeAccount ? 'Gratis para siempre' : 'Planes OfiAI'}
+        description={freeAccount ? 'Sin cuota mensual' : 'Suscripcion mensual con renovacion automatica'} />
+      {freeAccount && <p className="mb-4">{personal ? 'Se suma un 10% al contratante por contratacion efectiva en OfiAI.' : 'Tu perfil y tus propuestas son gratuitos. OfiAI no descuenta su comision de tus honorarios.'}</p>}
       <ResourceState resource={available} />
       <ResourceState resource={current} />
       {current.data && <p className="mb-4">Plan {available.data?.find(plan => plan.id === current.data?.plan)?.nombre ?? current.data.plan}: {current.data.estado}. Renovacion automatica: {current.data.renovacionAutomatica ? 'si' : 'no'}.</p>}
-      {current.data === null && <p className="mb-4">Todavia no tenes una suscripcion.</p>}
+      {current.data === null && !freeAccount && <p className="mb-4">Todavia no tenes una suscripcion.</p>}
       <SubscriptionBillingPanel onChanged={() => { current.reload(); history.reload(); }} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {available.data?.map((plan, index) => <article className={['bg-sky-50', 'bg-emerald-50', 'bg-violet-50', 'bg-rose-50'][index % 4] + ' flex min-w-0 flex-col rounded-lg border border-border p-5'} key={plan.audience + plan.id}>
           <Banknote className="h-5 w-5 text-emerald-700" />
           <h2 className="mt-3 text-lg font-semibold">{plan.nombre}</h2>
           {role === 'admin' && <p className="text-sm">{plan.audience}</p>}
-          <p className="mt-4 text-2xl">US$ {plan.priceUsd}<span className="text-sm">/mes</span></p>
+          <p className="mt-4 text-2xl">{plan.audience !== 'empresa' ? 'Gratis para siempre' : <>US$ {plan.priceUsd}<span className="text-sm">/mes</span></>}</p>
           {plan.priceUsd > 0 && <p className="mt-2 text-sm">{plan.precioMensual !== null
             ? plan.moneda + ' ' + plan.precioMensual.toLocaleString() + ' por mes' : 'Importe local pendiente de configuracion'}</p>}
           {plan.exchangeRate && <p className="mt-2 text-sm text-muted">1 USD = {plan.exchangeRate.rate.toLocaleString()} ARS.
@@ -761,7 +774,7 @@ function SubscriptionsPage() {
       <ul className="my-4 flex-1 space-y-2">{Object.entries(plan.audience === 'profesional' ? plan.limitesProfesional : plan.limitesEmpresa)
         .filter(([key]) => key === 'trabajosPublicados' || key === 'propuestasEnviadas').map(([key, value]) =>
             <li key={key}>{metricLabel(key)}: {value === -1 ? 'Sin limite' : value}</li>)}</ul>
-          {role !== 'admin' && <button className="ofi-btn-primary mt-4" disabled={pending || !plan.available || (current.data?.plan === plan.id && current.data.estado === 'activa')}
+          {role !== 'admin' && !freeAccount && <button className="ofi-btn-primary mt-4" disabled={pending || !plan.available || (current.data?.plan === plan.id && current.data.estado === 'activa')}
             onClick={() => void handleSubscribe(plan.id)}>{current.data?.plan === plan.id && current.data.estado === 'activa'
               ? 'Plan actual' : plan.available ? 'Elegir ' + plan.nombre : 'Contratacion no disponible'}</button>}
         </article>)}
@@ -847,6 +860,7 @@ function SettingsPage() {
       <Panel title="Perfil">
         <p>{account.data.usuario.nombre} {account.data.usuario.apellido}</p>
         <p>{account.data.usuario.email}</p><p>{account.data.usuario.rol}</p>
+        {account.data.usuario.rol==='profesional'&&<SettlementAccountForm/>}
       </Panel>
       <Panel title="Notificaciones">
         {(Object.keys(preferences) as Array<keyof NotificationPreferences>).map(key =>

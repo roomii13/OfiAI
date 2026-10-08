@@ -24,7 +24,7 @@ export const esquemaCancelarSuscripcion = z.object({
 
 export const esquemaCambioPlan = z.object({ plan: billingPlanSchema,
   expectedPriceMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional() }).strict();
-export const esquemaCatalogo = z.object({ audience: z.enum(['empresa', 'profesional']).optional() }).strict();
+export const esquemaCatalogo = z.object({ audience: z.enum(['empresa', 'profesional', 'particular']).optional() }).strict();
 export const esquemaRevenue = z.object({ month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/) }).strict();
 export const esquemaFeePreview = z.object({ grossMinor: z.number().int().min(0).max(1000000000000) }).strict();
 export const esquemaWebhook = z.object({

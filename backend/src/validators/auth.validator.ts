@@ -7,6 +7,18 @@ import { z } from 'zod';
 
 export const codigosPaisEnum = z.enum(['MX', 'CO', 'CL', 'AR', 'PE', 'EC', 'VE', 'BO', 'PY', 'UY']);
 
+/** Registro personal sin datos societarios ni campos de permisos controlados por el cliente. */
+export const esquemaRegistroParticular = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(8).max(128),
+  nombre: z.string().trim().min(2).max(100),
+  apellido: z.string().trim().min(2).max(100),
+  pais: codigosPaisEnum,
+  ciudad: z.string().trim().min(2).max(120),
+  telefono: z.string().trim().max(30).optional(),
+}).strict();
+export type DatosRegistroParticular = z.infer<typeof esquemaRegistroParticular>;
+
 /**
  * Esquema de validación para registro de Empresa.
  */

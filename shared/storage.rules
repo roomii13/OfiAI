@@ -44,6 +44,11 @@ service firebase.storage {
       allow delete: if esAdmin();
     }
 
+    // Evidencias privadas e inmutables; descargas via backend con ownership e integridad.
+    match /contract-evidence/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

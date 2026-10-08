@@ -16,6 +16,12 @@ import type { BillingAudience, BillingEntitlements, BillingLimits, BillingPaymen
 import { COMMERCIAL_PLANS } from '../constants/billing';
 import { amountMinor, billingDate, hasPaidAccess, nextBillingMonth } from '../utils/billing';
 import { ApiError } from '../middleware/error.middleware';
+import type { Usuario } from '../models/User';
+
+/** El tipo de cuenta se obtiene de Firestore, nunca de un parametro de checkout. */
+export function billingAudience(role: BillingAudience, user?: Pick<Usuario, 'tipoCuenta'>): BillingAudience {
+  return role === 'empresa' && user?.tipoCuenta === 'particular' ? 'particular' : role;
+}
 
 interface BillingAccount {
   currentSubscriptionId?: string;
@@ -37,11 +43,11 @@ function normalizeSubscription(data: Suscripcion): Suscripcion {
 /** Resuelve permisos desde datos del servidor y nunca desde claims de plan del cliente. */
 export function subscriptionEntitlements(subscription: Suscripcion | null, role: BillingAudience,
   used: Partial<BillingLimits> = {}, now = new Date()): BillingEntitlements {
-  const paid = subscription?.rolUsuario === role && hasPaidAccess(subscription, now);
+  const paid = role === 'empresa' && subscription?.rolUsuario === role && hasPaidAccess(subscription, now);
   const free = COMMERCIAL_PLANS.find(plan => plan.id === 'gratuito' && plan.audience === role)!;
   const limits: BillingLimits = paid && subscription ? { ...free.limits, ...subscription.limitesActuales } : { ...free.limits };
   return { plan: paid && subscription ? subscription.plan : 'gratuito', paid, period: now.toISOString().slice(0, 7),
-    limits, used, features: { publishJobs: role === 'empresa' && limits.trabajosPublicados !== 0,
+    limits, used, features: { publishJobs: role !== 'profesional' && limits.trabajosPublicados !== 0,
       sendProposals: role === 'profesional' && limits.propuestasEnviadas !== 0, financialHistory: true } };
 }
 
@@ -300,7 +306,8 @@ export class SubscriptionRepository {
   /** Permisos y consumo reales, compartidos por web y mobile. */
   async entitlements(uid: string, role: BillingAudience): Promise<BillingEntitlements> {
     const sub = await this.findCurrentByUserId(uid); const used = (await this.usage(uid).get()).data();
-    return subscriptionEntitlements(sub, role, used as Partial<BillingLimits> | undefined);
+    const user = (await this.db.collection(COLECCIONES.USUARIOS).doc(uid).get()).data() as Usuario | undefined;
+    return subscriptionEntitlements(sub, billingAudience(role, user), used as Partial<BillingLimits> | undefined);
   }
 
   /** Consume cuota en la misma transaccion que publica el trabajo o guarda la propuesta. */
@@ -317,7 +324,8 @@ export class SubscriptionRepository {
       sub = existing.docs.map(doc => normalizeSubscription(doc.data() as Suscripcion)).find(s => hasPaidAccess(s)) ?? null;
     }
     const ref = this.usage(uid); const usage = (await tx.get(ref)).data() as Partial<BillingLimits> | undefined;
-    const entitlements = subscriptionEntitlements(sub, role, usage);
+    const user = (await tx.get(this.db.collection(COLECCIONES.USUARIOS).doc(uid))).data() as Usuario | undefined;
+    const entitlements = subscriptionEntitlements(sub, billingAudience(role, user), usage);
     const limit = entitlements.limits[feature]; const used = usage?.[feature] ?? 0;
     if (limit !== -1 && used >= limit) throw new ApiError('Alcanzaste el limite mensual de tu plan. Revisa tu suscripcion.', 403);
     tx.set(ref, { ...usage, [feature]: used + 1 });

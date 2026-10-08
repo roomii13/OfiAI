@@ -2,6 +2,19 @@
 import type { Suscripcion } from '../models/Subscription';
 import { ApiError } from '../middleware/error.middleware';
 import { types } from 'node:util';
+import { CONTRACT_FEE_POLICY_VERSION, CONTRACT_FEE_BASIS_POINTS } from '../constants/billing';
+import type { ContractCharges } from '../../../shared/billing';
+
+/** Calcula sobre el presupuesto del profesional y adiciona la comision al contratante. */
+export function contractCharges(amount: number, currency: string, quoteId: string): ContractCharges {
+  const professionalAmountMinor = amountMinor(amount);
+  const feeMinor = calculateTransactionFee(professionalAmountMinor, CONTRACT_FEE_BASIS_POINTS);
+  const contractorTotalMinor = professionalAmountMinor + feeMinor;
+  if (!Number.isSafeInteger(contractorTotalMinor)) throw new ApiError('Importe invalido.', 400);
+  return { policyVersion: CONTRACT_FEE_POLICY_VERSION, quoteId, currency, basisPoints: CONTRACT_FEE_BASIS_POINTS,
+    professionalAmountMinor, feeMinor, contractorTotalMinor, payer: 'contractor',
+    collectionEnabled: false, protectionEnabled: false };
+}
 
 /** Normaliza Date, ISO y Timestamp del SDK; rechaza valores corruptos. */
 export function billingDate(value: unknown): Date {

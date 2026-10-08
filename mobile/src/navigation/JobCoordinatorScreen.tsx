@@ -13,6 +13,8 @@ import { coordinatorActions, coordinatorDate, coordinatorStates } from '../lib/c
 import { CoordinatorButton, coordinatorStyles as s } from './CoordinatorUi';
 import { CoordinatorActionSheet, type CoordinatorSheetAction } from './CoordinatorActionSheet';
 import { CoordinatorQuoteTerms, CoordinatorScheduleTerms } from './CoordinatorTerms';
+import { MobileContractCharges, MobileJobReview } from './ContractReviewPanels';
+import { MobileContractAgreement } from './SettlementPanels';
 
 /** Aisla datos, formularios e intentos por cuenta, rol y trabajo seleccionado. */
 export function JobCoordinatorScreen() {
@@ -43,7 +45,7 @@ function CoordinatorDetail({ jobId }: { jobId: string }) {
       {view && <>
         <Text style={[s.subtitle, { color: colores.texto }]}>{view.job.title}</Text>
         <Text style={{ color: colores.textoSuave }}>{view.job.category} · {view.job.location.city ?? 'Ubicacion por confirmar'}</Text>
-        <Text style={{ color: colores.texto }}>Tu rol: {view.role === 'empresa' ? 'Empresa' : 'Profesional'}</Text>
+        <Text style={{ color: colores.texto }}>Tu rol: {view.role === 'empresa' ? 'Contratante' : 'Profesional'}</Text>
         {view.role === 'empresa' && <>
           <CoordinatorButton label="Ver estimacion de precio" icon="calculator-outline" onPress={() => navigation.navigate('JobPricing', { jobId })} />
           <CoordinatorButton label="Ver profesionales" icon="people-outline" onPress={() => navigation.navigate('JobMatches', { jobId })} />
@@ -73,6 +75,9 @@ function CoordinatorDetail({ jobId }: { jobId: string }) {
           <Text style={{ color: colores.textoSuave }}>Propuesto por {workflow.offer.proposedBy} · {workflow.offer.accepted ? 'Aceptado' : 'Pendiente de aceptacion'}</Text>
           <CoordinatorQuoteTerms quote={workflow.offer.quote} />
         </View> : <Text style={{ color: colores.textoSuave }}>Sin presupuesto propuesto.</Text>}
+        {workflow&&!workflow.offer?.accepted&&<MobileContractCharges charges={workflow.charges} />}
+        {workflow?.offer?.accepted&&<MobileContractAgreement key={workflow.id+':'+workflow.revision} jobId={jobId} role={view.role}/>}
+        {workflow?.state === 'COMPLETED' && <MobileJobReview jobId={jobId} />}
         <Text accessibilityRole="header" style={[s.subtitle, { color: colores.texto }]}>Agenda</Text>
         {workflow?.schedule ? <View style={s.section}>
           <Text style={{ color: colores.textoSuave }}>Propuesta por {workflow.schedule.proposedBy} · {workflow.schedule.confirmed ? 'Confirmada' : 'Pendiente de confirmacion'}</Text>

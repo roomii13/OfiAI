@@ -39,6 +39,9 @@ export interface RegistroProfesionalMobile {
   telefono?: string;
 }
 
+/** Perfil personal sin datos comerciales. */
+export type RegistroParticularMobile = Pick<RegistroProfesionalMobile, 'email' | 'password' | 'nombre' | 'apellido' | 'pais' | 'ciudad' | 'telefono'>;
+
 export interface EstadoAuthMobile {
   usuario: UsuarioMobile | null;
   cargando: boolean;
@@ -48,6 +51,7 @@ export interface EstadoAuthMobile {
   iniciarSesion: (email: string, password: string) => Promise<void>;
   iniciarSesionDemo: (rol: RolUsuario) => Promise<void>;
   registrarEmpresa: (datos: RegistroEmpresaMobile) => Promise<void>;
+  registrarParticular: (datos: RegistroParticularMobile) => Promise<void>;
   registrarProfesional: (datos: RegistroProfesionalMobile) => Promise<void>;
   recuperarPassword: (email: string) => Promise<void>;
   cerrarSesion: () => Promise<void>;
@@ -62,6 +66,7 @@ interface BackendUsuario {
   nombre: string;
   apellido?: string;
   rol: RolUsuario;
+  tipoCuenta?: RolUsuario | 'particular';
   pais?: string;
 }
 
@@ -84,8 +89,9 @@ function normalizeUsuario(usuario: BackendUsuario): UsuarioMobile {
     email: usuario.email,
     nombre: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || usuario.email,
     rol: usuario.rol,
+    tipoCuenta: usuario.tipoCuenta ?? usuario.rol,
     pais: usuario.pais ?? 'AR',
-    plan: usuario.rol === 'empresa' ? 'empresa' : usuario.rol === 'profesional' ? 'profesional' : 'gratuito',
+    plan: 'gratuito',
   };
 }
 
@@ -326,6 +332,16 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
     }
   }, [commitSession]);
 
+  /** Usa el mismo intercambio de custom token y persistencia nativa que las otras cuentas. */
+  const registrarParticular = useCallback(async (datos: RegistroParticularMobile): Promise<void> => {
+    setCargando(true);
+    try {
+      const payload = unwrap(await apiMobile.post<ApiEnvelope<BackendAuthPayload>>('/auth/register/citizen', datos));
+      const sessionToken = await resolveSessionToken(payload.customToken);
+      await commitSession({ usuario: normalizeUsuario(payload.usuario), token: sessionToken });
+    } finally { setCargando(false); }
+  }, [commitSession]);
+
   const registrarProfesional = useCallback(async (datos: RegistroProfesionalMobile): Promise<void> => {
     setCargando(true);
     try {
@@ -365,6 +381,7 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
     iniciarSesion,
     iniciarSesionDemo,
     registrarEmpresa,
+    registrarParticular,
     registrarProfesional,
     recuperarPassword,
     cerrarSesion,
@@ -375,6 +392,7 @@ export const AuthProviderMobile = ({ children }: { children: ReactNode }) => {
     iniciarSesion,
     iniciarSesionDemo,
     registrarEmpresa,
+    registrarParticular,
     registrarProfesional,
     recuperarPassword,
     cerrarSesion,

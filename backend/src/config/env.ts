@@ -82,6 +82,7 @@ const envSchema = z.object({
   MERCADOPAGO_WEBHOOK_SECRET: z.string().default(''),
   MERCADOPAGO_CURRENCY: z.string().default('ARS'),
   MERCADOPAGO_NOTIFICATION_URL: z.string().url().optional(),
+  CONTRACT_PAYMENTS_ENABLED: z.enum(['true','false']).default('false').transform(value=>value==='true'),
   BILLING_USD_TO_ARS: z.preprocess(value => value === '' ? undefined : value, z.coerce.number().positive().max(1000000).optional()),
   BILLING_CATALOG_JSON: z.string().default('{}').transform(jsonConfig).pipe(billingOverridesSchema),
   BILLING_STORE_PRODUCTS_JSON: z.string().default('[]').transform(jsonConfig).pipe(storeProductsSchema),

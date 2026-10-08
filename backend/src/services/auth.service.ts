@@ -19,6 +19,7 @@ import { Profesional } from '../models/Professional';
 import { COLECCIONES } from '../database/firestore/collections';
 import {
   DatosRegistroEmpresa,
+  DatosRegistroParticular,
   DatosRegistroProfesional,
   DatosLogin,
 } from '../validators/auth.validator';
@@ -44,6 +45,19 @@ class AuthService {
    * Crea el usuario en Firebase Auth, asigna claim 'empresa', guarda el Usuario en Firestore y crea el perfil Empresa.
    */
   async registerCompany(datos: DatosRegistroEmpresa): Promise<RespuestaAuth> {
+    return this.registerContractor(datos, 'empresa');
+  }
+
+  /** Crea un contratante particular gratuito usando el mismo aislamiento de Jobs. */
+  async registerCitizen(datos: DatosRegistroParticular): Promise<RespuestaAuth> {
+    return this.registerContractor({
+      ...datos, nombreEmpresa: [datos.nombre, datos.apellido].join(' '),
+      industria: 'Servicios particulares', tamanoEmpresa: 'micro',
+    }, 'particular');
+  }
+
+  /** Conserva el rol de contratante existente; el tipo de cuenta lo decide el servidor. */
+  private async registerContractor(datos: DatosRegistroEmpresa, tipoCuenta: 'empresa' | 'particular'): Promise<RespuestaAuth> {
     const usuarioExistente = await userRepository.findByEmail(datos.email);
     if (usuarioExistente) {
       throw new ApiError('El correo electrónico ya se encuentra registrado.', 400);
@@ -67,6 +81,7 @@ class AuthService {
       apellido: datos.apellido,
       telefono: datos.telefono,
       rol: 'empresa',
+      tipoCuenta,
       pais: datos.pais,
       idioma: 'es-LA' as const,
       emailVerificado: false,
@@ -82,6 +97,7 @@ class AuthService {
     const perfilEmpresa: Empresa = {
       id: firestore.collection(COLECCIONES.EMPRESAS).doc().id,
       usuarioId: firebaseUser.uid,
+      tipoCuenta,
       nombreEmpresa: datos.nombreEmpresa,
       industria: datos.industria,
       tamanoEmpresa: datos.tamanoEmpresa,
@@ -137,6 +153,7 @@ class AuthService {
       apellido: datos.apellido,
       telefono: datos.telefono,
       rol: 'profesional',
+      tipoCuenta: 'profesional',
       pais: datos.pais,
       idioma: 'es-LA' as const,
       emailVerificado: false,

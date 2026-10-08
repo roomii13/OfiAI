@@ -83,6 +83,37 @@ const invoiceSchema = z.object({
   currency_id: z.string(), transaction_amount: z.coerce.number().positive(),
   payment: z.object({ id: z.number().int().positive(), status: z.string() }).nullable().optional(),
 });
+const contractPaymentSchema = paymentSchema.extend({ collector_id: z.number().int().positive(), date_last_updated: z.string().datetime({offset:true}),
+  transaction_details:z.object({ net_received_amount:z.number().nonnegative().nullable().optional() }).optional(),
+});
+export type ContractMercadoPagoPayment = z.infer<typeof contractPaymentSchema>;
+/** Cuenta receptora derivada del token servidor, no de un ID proporcionado por React. */
+export async function obtenerCuentaReceptoraMercadoPago(): Promise<string> {
+  const result = z.object({ id:z.number().int().positive(),site_id:z.literal('MLA') }).parse(await mercadoPagoRequest('/users/me',{ method:'GET' }));
+  return String(result.id);
+}
+/** Consulta de un cobro de trabajo con comisiones efectivas y cuenta receptora. */
+export async function obtenerCobroTrabajoMercadoPago(id: string): Promise<ContractMercadoPagoPayment> {
+  return contractPaymentSchema.parse(await mercadoPagoRequest('/v1/payments/' + providerId.parse(id),{ method:'GET' }));
+}
+const contractPreferenceSchema = z.object({ id:providerId,init_point:z.string().url(),collector_id:z.number().int().positive(),external_reference:z.string() });
+/** Checkout normal a la cuenta del token: sin escrow, split ni transferencias automaticas. */
+export async function crearCheckoutTrabajoMercadoPago(input: { reference:string; amountMinor:number; returnUrl:string; notificationUrl:string }): Promise<z.infer<typeof contractPreferenceSchema>> {
+  return contractPreferenceSchema.parse(await mercadoPagoRequest('/checkout/preferences',{ method:'POST',body:{
+    external_reference:input.reference,items:[{ id:input.reference,title:'Contratacion OfiAI',quantity:1,currency_id:'ARS',unit_price:input.amountMinor/100 }],
+    notification_url:input.notificationUrl,back_urls:{ success:input.returnUrl,pending:input.returnUrl,failure:input.returnUrl },
+    auto_return:'approved',payment_methods:{ installments:1 },expires:true,expiration_date_to:new Date(Date.now()+86400000).toISOString(),
+  } }));
+}
+/** Recupera una preferencia tras un timeout; nunca crea otra a ciegas. */
+export async function buscarCheckoutTrabajoMercadoPago(reference: string): Promise<z.infer<typeof contractPreferenceSchema> | null> {
+  const rows = z.object({ elements:z.array(z.object({ id:providerId,external_reference:z.string() })) }).parse(
+    await mercadoPagoRequest('/checkout/preferences/search?external_reference=' + encodeURIComponent(reference),{ method:'GET' }));
+  const matches = rows.elements.filter(row=>row.external_reference===reference);
+  if (matches.length>1) throw new ApiError('Existen multiples preferencias; requiere conciliacion.',409);
+  if (!matches[0]) return null;
+  return contractPreferenceSchema.parse(await mercadoPagoRequest('/checkout/preferences/' + matches[0].id,{ method:'GET' }));
+}
 export type FacturaMercadoPago = z.infer<typeof invoiceSchema>;
 
 /**

@@ -132,6 +132,17 @@ service cloud.firestore {
     match /billing_payments/{id} { allow read, write: if false; }
     match /billing_revenue/{id} { allow read, write: if false; }
     match /billing_tasks/{id} { allow read, write: if false; }
+    // Acuerdos, destinos privados y auditoria solo mediante API autorizada.
+    // Incluye subcolecciones de evidencias, comandos, versiones y cobros duplicados.
+    match /contract_agreements/{document=**} { allow read, write: if false; }
+    match /financial_grants/{document=**} { allow read, write: if false; }
+    match /contract_policies/{document=**} { allow read, write: if false; }
+    match /financial_audit/{document=**} { allow read, write: if false; }
+    match /settlement_accounts/{document=**} { allow read, write: if false; }
+    match /contract_payment_receipts/{document=**} { allow read, write: if false; }
+    match /contract_transfers/{document=**} { allow read, write: if false; }
+    match /settlement_references/{document=**} { allow read, write: if false; }
+    match /contract_checkouts/{document=**} { allow read, write: if false; }
     match /subscriptions/{suscripcionId} {
       allow read: if esPropietario(resource.data.usuarioId) || esAdmin();
       allow create, update, delete: if false;

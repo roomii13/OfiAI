@@ -54,6 +54,7 @@ const navigationItems: NavigationItem[] = [
   { label: 'Analytics', path: '/analytics', icon: BarChart3, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Configuración', path: '/settings', icon: Settings, roles: ['empresa', 'profesional', 'admin'] },
   { label: 'Admin', path: '/admin', icon: ShieldCheck, roles: ['admin'] },
+  { label: 'Cobros y liquidaciones', path: '/admin/settlements', icon: CreditCard, roles: ['admin'] },
 ];
 
 /**
@@ -66,7 +67,8 @@ function getNavigationForRole(role: UserRole | null): NavigationItem[] {
 /**
  * Devuelve una etiqueta legible para el rol del usuario.
  */
-function formatRole(role: UserRole | null): string {
+function formatRole(role: UserRole | null, accountType?: string): string {
+  if (accountType === 'particular') return 'Particular';
   if (role === 'empresa') {
     return 'Empresa';
   }
@@ -137,7 +139,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const subscription = useApiResource<SubscriptionData | null>(role !== 'admin' ? '/subscriptions/me' : null);
   const location = useLocation();
   const navigate = useNavigate();
-  const navigation = getNavigationForRole(role);
+  const freeAccount = role === 'profesional' || user?.accountType === 'particular';
+  const navigation = getNavigationForRole(role)
+    .filter(item => user?.accountType !== 'particular' || item.path !== '/companies')
+    .map(item => item.path === '/subscriptions' && freeAccount ? { ...item, label: 'Mi cuenta gratuita' } : item);
   const title = getPageTitle(location.pathname);
 
   /**
@@ -162,9 +167,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </nav>
         {role !== 'admin' && <div className="border-t border-border p-4">
           <div className="ofi-plan-summary rounded-lg p-3">
-            <p className="text-xs font-medium uppercase text-gray-500">Suscripcion</p>
+            <p className="text-xs font-medium uppercase text-gray-500">{freeAccount ? 'Mi cuenta' : 'Suscripcion'}</p>
             <p className="mt-1 text-sm font-semibold capitalize text-gray-950">
-              {subscription.loading ? 'Cargando...' : subscription.error ? 'No disponible' : subscription.data ? `${subscription.data.plan}: ${subscription.data.estado}` : 'Sin suscripcion'}
+              {freeAccount ? 'Gratis para siempre' : subscription.loading ? 'Cargando...' : subscription.error ? 'No disponible' : subscription.data ? `${subscription.data.plan}: ${subscription.data.estado}` : 'Sin suscripcion'}
             </p>
           </div>
         </div>}
@@ -211,7 +216,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase text-gray-500">{formatRole(role)}</p>
+              <p className="text-xs font-medium uppercase text-gray-500">{formatRole(role, user?.accountType)}</p>
               <h1 className="truncate text-lg font-semibold text-gray-950 sm:text-xl">{title}</h1>
             </div>
           </div>

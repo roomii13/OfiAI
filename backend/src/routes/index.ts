@@ -25,8 +25,12 @@ import { notificationRoutes } from "./notification.routes";
 import { professionalRoutes } from "./professional.routes";
 import { schedulerRoutes } from "./scheduler.routes";
 import { subscriptionRoutes } from "./subscriptions.routes";
+import { resolutionRoutes } from './protected-contract.routes';
+import { settlementRoutes } from './settlement.routes';
 
 const router = Router();
+router.use('/resolution', resolutionRoutes);
+router.use('/settlements',settlementRoutes);
 router.use('/sales', salesRoutes);
 router.use('/marketing', marketingRoutes);
 router.use('/support', supportRoutes);

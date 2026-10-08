@@ -10,7 +10,7 @@ import { redactSecrets } from '../../validators/support.validator';
 import { ApiError } from '../../middleware/error.middleware';
 /** El modelo propone datos; la funcion validate aplica restricciones adicionales de dominio. */
 export async function businessAi<T>(options: {
-  actor: AgentActor; agent: 'sales' | 'marketing' | 'support' | 'analytics'; promptVersion: string;
+  actor: AgentActor; agent: 'sales' | 'marketing' | 'support' | 'analytics' | 'disputes'; promptVersion: string;
   system: string; data: unknown; schema: ZodType<T>; jsonSchema: Record<string,unknown>;
   fallback: T; validate?: (value: T)=>boolean;
 }): Promise<{value: T; usedAi: boolean}> {
