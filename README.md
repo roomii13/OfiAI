@@ -32,6 +32,12 @@ Backend, web y mobile ya tienen una base funcional compilable:
 - Web React + Vite con login, registro, dashboards, empresas, profesionales, trabajos, IA, suscripciones, analytics, configuración y admin.
 - Mobile Expo con navegación, login, registro, dashboard, trabajos, perfil, IA, notificaciones y configuración.
 - Tests iniciales unitarios, integración y API en backend.
+- demo-user:
+- | Rol         | Email                         | Contraseña |
+  
+| Profesional   | profesional@demo.ofiai.local  | `OfiAI-Pro-2026!` |
+| Empresa       | empresa@demo.ofiai.local      | `OfiAI-Empresa-2026!` |
+| Administrador | admin@demo.ofiai.local        | `OfiAI-Admin-2026!` |
 
 ## Stack
 
