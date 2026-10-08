@@ -32,7 +32,7 @@ export function MobileSettlementsPanel() {
 function MobileSettlementDetail({row,reload}:{row:SettlementRow;reload:()=>void}) {
   const {colores}=useThemeMobile();const [reason,setReason]=useState('');const [reference,setReference]=useState('');const [confirm,setConfirm]=useState(false);
   const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');const [key]=useState(coordinatorId);
-  /** Recalculo, cuenta y MFA se verifican nuevamente en el servidor. */
+  /** Recalculo, cuenta, permiso OWNER y sesion reciente se verifican en el servidor. */
   async function submit(verify:boolean):Promise<void>{if(busy||!row.account)return;setBusy(true);setMessage('');
     try{await apiMobile.post(verify?'/settlements/accounts/'+row.professionalUserId+'/verify':'/settlements/'+row.jobId+'/record-transfer',verify?
       {version:row.account.version,reason}:{idempotencyKey:key,accountVersion:row.account.version,reference,confirmTransferred:confirm});setMessage('Registro guardado.');reload();}

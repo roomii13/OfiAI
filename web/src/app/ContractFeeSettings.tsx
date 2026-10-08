@@ -1,4 +1,4 @@
-/** @archivo ContractFeeSettings.tsx @descripcion Reglas versionadas editables solo por OWNER con MFA reciente. */
+/** @archivo ContractFeeSettings.tsx @descripcion Reglas versionadas editables solo por OWNER con sesion reciente. */
 import { useState } from 'react';
 import { Save,Plus,Trash2 } from 'lucide-react';
 import { api } from '../lib/api/client';

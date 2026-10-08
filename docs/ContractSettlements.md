@@ -46,13 +46,13 @@ El estado de trabajo permanece en Coordinator; el expediente registra las confir
 - Participantes: acceso solo a su acuerdo; contratante acepta desglose y ambos pueden reclamar/aportar evidencia.
 - Profesional: edita unicamente su cuenta privada de cobro; cambiarla revoca su verificacion.
 - OWNER: bandeja financiera, verificacion de destinos, registro manual, comisiones y permisos.
-- Unicos correos permitidos para OWNER: `romina.celis33@gmail.com` y `rom-cel@live.com.ar`. La API exige correo verificado del token Firebase y grant activo; ni escribir ese correo en un formulario ni asignar un grant OWNER a otra cuenta permite entrar. La lista es compartida con el bootstrap y no editable por HTTP.
+- Unicos correos permitidos para OWNER: `romina.celis33@gmail.com` y `rom-cel@live.com.ar`. La API exige token Firebase valido, rol administrador autoritativo y grant OWNER activo ligado al UID. Por decision expresa de la propietaria no exige `email_verified` ni MFA para esas cuentas. Ni escribir ese correo en un formulario ni asignar un grant OWNER a otro correo permite entrar. La lista es compartida con el bootstrap y no editable por HTTP.
 - DISPUTE_ADMIN: solo expedientes asignados y capacidades concedidas. No puede nombrar administradores, cambiar comisiones ni gestionar liquidaciones del OWNER.
-- Operaciones administrativas sensibles: token Firebase con MFA y autenticacion de los ultimos 10 minutos.
+- Operaciones administrativas sensibles: autenticacion de los ultimos 10 minutos para todos; MFA adicional para DISPUTE_ADMIN, sin exigirlo a los dos OWNER autorizados. La excepcion reduce la defensa contra robo de contrasenas y no se extiende a administradores generales.
 - Permisos activos se releen en servidor; el rol general `admin` no basta. Se rechazan conflictos de interes.
 - Propuesta y aprobacion de resoluciones financieras son acciones separadas. Segun umbral se exige aprobador independiente. Ninguna resolucion mueve fondos.
 
-Bootstrap de OWNER: `node dist/workers/financial-owner.worker.js` comprueba, sin escribir. `--apply` concede solo a las identidades autorizadas, ya existentes como administradoras y con correo verificado. No crea usuarios, no verifica correos artificialmente y no hay endpoint para autootorgarse OWNER.
+Bootstrap de OWNER: `node dist/workers/financial-owner.worker.js` comprueba, sin escribir. `--apply` concede solo a las identidades Firebase autorizadas, habilitadas y ya existentes como administradoras activas. No exige verificacion de correo ni MFA, no crea usuarios, no cambia contrasenas ni factores inscritos, no marca correos como verificados y no hay endpoint para autootorgarse OWNER. El alta deja auditoria y repetirla no duplica un permiso activo.
 
 ## Endpoints nuevos
 
@@ -69,13 +69,13 @@ Prefijo `/api/v1`. Requieren Firebase ID token salvo webhook firmado.
 | GET | `/jobs/:id/contract/evidence/:evidenceId` | Descarga autenticada con comprobacion de integridad |
 | GET | `/resolution` | Reclamos recientes segun permisos |
 | GET | `/resolution/policy/:currency` | Politica vigente, OWNER |
-| PUT | `/resolution/policy` | Nueva version, OWNER + MFA |
-| PUT | `/resolution/grants` | Conceder/revocar DISPUTE_ADMIN, OWNER + MFA |
+| PUT | `/resolution/policy` | Nueva version, OWNER + sesion reciente |
+| PUT | `/resolution/grants` | Conceder/revocar DISPUTE_ADMIN, OWNER + sesion reciente |
 | GET | `/settlements` | Bandeja financiera, OWNER |
 | GET / PUT | `/settlements/account` | Cuenta privada del profesional |
-| POST | `/settlements/accounts/:id/verify` | Verificacion manual por OWNER + MFA |
+| POST | `/settlements/accounts/:id/verify` | Verificacion manual por OWNER + sesion reciente |
 | POST | `/settlements/:id/checkout` | Checkout ordinario del acuerdo aceptado |
-| POST | `/settlements/:id/record-transfer` | Registrar transferencia externa, OWNER + MFA |
+| POST | `/settlements/:id/record-transfer` | Registrar transferencia externa, OWNER + sesion reciente |
 | POST | `/settlements/webhooks/mercadopago` | Firma y consulta canonica del proveedor |
 
 Tambien se incorporaron `/auth/register/citizen` y GET/POST `/jobs/:id/review` para particulares y evaluaciones de trabajos completados. Se conservan endpoints de suscripciones.
@@ -142,7 +142,7 @@ Reutilizadas: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADO
 - Advertencias previas: tests moviles de otras pantallas necesitan completar `act`; Vite informa chunk grande y uso de `__dirname` en configuracion.
 - El navegador aislado bloqueo el WebSocket de recarga de Vite; no impidio el render ni las comprobaciones del componente. La prueba inicial tambien requirio adaptar el import del bundle React del entorno de pruebas; no fue un error de la aplicacion.
 
-### Validacion posterior: 10% y propietarios exclusivos
+### Validacion anterior: 10% y propietarios exclusivos, antes de la excepcion de autenticacion
 
 - Backend: 30 suites / 349 tests aprobados y compilacion correcta.
 - Web: 11 archivos / 98 tests aprobados; TypeScript y build correctos.
@@ -151,15 +151,24 @@ Reutilizadas: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADO
 - Dry-run Firebase posterior: Gmail continua sin verificar y sin MFA; la segunda cuenta autorizada no existe. No se escribieron grants ni se marcaron correos verificados.
 - Los cambios no se desplegaron. Se conserva `CONTRACT_PAYMENTS_ENABLED=false`.
 
+### Excepcion OWNER autorizada el 2026-10-08
+
+- Se retiraron la verificacion obligatoria de correo y MFA solo para los dos correos OWNER permitidos, con grant activo y rol administrador del servidor. Se mantiene autenticacion reciente, revocacion, auditoria, doble aprobacion y MFA de administradores delegados.
+- Backend: compilacion correcta; 31 suites / 363 tests aprobados. Incluye 52 pruebas focalizadas de contratos, API y bootstrap, con rechazo de correos ajenos, grants ausentes/revocados, fechas de autenticacion invalidas y elevacion de perfiles no administradores.
+- Ejecucion real de bootstrap: `romina.celis33@gmail.com` obtuvo OWNER (`owner_configured`) con auditoria. `rom-cel@live.com.ar` no existe (`account_not_found`) y no se creo automaticamente.
+- En una lectura posterior ambas identidades ya existian con `rol: owner`, incompatible con el rol base `admin` que entiende OfiAI. Gmail conservaba el grant OWNER; Live no tenia grant y carecia de `activo: true`. Se solicito autorizacion para normalizar esos perfiles sin cambiar contrasenas. Esta diferencia impide considerar operativo el acceso actual.
+- Tras autorizacion expresa se normalizaron ambos perfiles en una transaccion: UID conservado, `rol: admin`, `tipoCuenta: admin`, `activo: true` y grant OWNER activo. Se sincronizo `rol: admin` en Firebase Auth conservando las demas claims. La lectura posterior confirmo los dos permisos y ambos correos siguieron sin verificar y sin factores MFA. Las escrituras dejaron auditoria; no se cambiaron contrasenas. Esto corrige la incompatibilidad anterior, pero no sustituye el despliegue del backend.
+- No se marcaron correos como verificados, no se modificaron contrasenas ni se activaron pagos. El codigo actualizado necesita desplegarse en Render para aplicar la excepcion en la API publicada.
+
 ## Pendientes antes de habilitar
 
-1. Verificar correo y MFA de la propietaria y provisionar OWNER. Lectura realizada en esta sesion: primera identidad autorizada sin correo verificado/MFA; segunda identidad no existente. No se modificaron esas cuentas ni se otorgaron privilegios.
+1. Desplegar la excepcion de autenticacion solicitada para OWNER. Los dos perfiles ya estan normalizados y tienen grant OWNER activo; deben volver a iniciar sesion para renovar las claims. La verificacion de correo y MFA ya no son condiciones para OWNER en esta version.
 2. Configurar tarifas, impuestos y condiciones efectivas, confirmar aplicabilidad comercial del cobro y pago posterior manual con el proveedor/asesoria correspondiente. La aplicacion no convierte el saldo ordinario en custodia.
 3. Validar checkout, entrega originada por Mercado Pago, rechazo, devoluciones, contracargos y recuperacion de timeouts con cuentas de prueba. No se ejecutaron cobros reales.
 4. Completar conciliacion periodica y recuperacion operativa de preferencias vencidas, cobros duplicados y diferencias de neto. Por ahora quedan bloqueados para revision.
 5. Cerrar interfaz administrativa de disputas, apelaciones, evidencias, permisos y asistencia IA. El backend existe; los paneles de participantes permiten apertura/mensajes, no todo el Centro de Resolucion solicitado.
 6. Una disputa bloquea liquidacion incluso tras resolucion hasta implementar su ejecucion/revision financiera explicita. No hay liberacion automatica por una recomendacion o resolucion.
-7. Completar configuracion de comisiones/permisos en movil, paginacion de bandeja (actualmente 50 recientes), onboarding MFA y pruebas Android/iOS fisicas.
+7. Completar configuracion de comisiones/permisos en movil, paginacion de bandeja (actualmente 50 recientes), onboarding MFA para administradores delegados y pruebas Android/iOS fisicas.
 8. Validar reglas en emulador, revisar las reglas publicadas y desplegar API/web. No se hizo despliegue ni se habilito el flag de contrataciones en esta fase.
 
 ## Archivos de esta fase

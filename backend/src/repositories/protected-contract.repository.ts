@@ -13,10 +13,14 @@ import type { ContractEntry } from '../../../shared/protected-contract';
 
 /** Huella interna de datos normalizados; no se almacena contenido en logs. */
 function fingerprint(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
-/** Revalida MFA de Firebase y antiguedad de autenticacion, no un campo editable del usuario. */
-export function requireFinancialMfa(actor: FinancialActor): void {
+/** Exime de MFA solo a OWNER autorizados; conserva sesion reciente y MFA para delegados. */
+export function requireFinancialMfa(actor: FinancialActor, grant: FinancialGrant | null): void {
   const age = Date.now() / 1000 - (actor.authTime ?? 0);
-  if (!actor.secondFactor || age < 0 || age > 600) throw new ApiError('Esta accion requiere MFA y una autenticacion de los ultimos 10 minutos.', 403);
+  if (!Number.isFinite(actor.authTime) || age < 0 || age > 600)
+    throw new ApiError('Esta accion requiere iniciar sesion nuevamente: la autenticacion debe ser de los ultimos 10 minutos.', 403);
+  const authorizedOwner = actor.rol === 'admin' && grant?.role === 'OWNER' && grant.active && grant.uid === actor.uid
+    && FINANCIAL_OWNER_EMAILS.includes(actor.email?.trim().toLowerCase() ?? '');
+  if (!authorizedOwner && !actor.secondFactor) throw new ApiError('Esta accion requiere MFA para administradores delegados.', 403);
 }
 /** No efectua llamadas a proveedores dentro de transacciones de Firestore. */
 export class ProtectedContractRepository {
@@ -29,8 +33,8 @@ export class ProtectedContractRepository {
     const user = (await tx.get(this.db.collection(C.USUARIOS).doc(actor.uid))).data();
     if (!user?.activo || user.rol !== actor.rol) throw new ApiError('Cuenta no habilitada.', 403);
     const grant = (await tx.get(this.db.collection(P.grants).doc(actor.uid))).data() as FinancialGrant | undefined;
-    if (grant?.role === 'OWNER' && (!actor.emailVerificado || !FINANCIAL_OWNER_EMAILS.includes(actor.email?.trim().toLowerCase() ?? '')))
-      throw new ApiError('OWNER requiere uno de los correos propietarios verificado en Firebase.', 403);
+    if (grant?.role === 'OWNER' && !FINANCIAL_OWNER_EMAILS.includes(actor.email?.trim().toLowerCase() ?? ''))
+      throw new ApiError('OWNER requiere uno de los correos propietarios autorizados.', 403);
     return actor.rol === 'admin' && grant?.active && grant.uid === actor.uid ? grant : null;
   }
   /** Autorizacion administrativa independiente del rol admin general. */
@@ -39,7 +43,7 @@ export class ProtectedContractRepository {
     if (!grant || (grant.role !== 'OWNER' && (!grant.permissions.includes(permission) || !c || c.assignedUid !== actor.uid)))
       throw new ApiError('No tenes permisos para esta operacion.', 403);
     if (c && [c.companyUid, c.professionalUid].includes(actor.uid)) throw new ApiError('No podes administrar una contratacion propia.', 403);
-    if (sensitive) requireFinancialMfa(actor);
+    if (sensitive) requireFinancialMfa(actor, grant);
   }
   /** Verifica titulares actuales del Job y profesional, no solamente los UID del snapshot. */
   private async access(tx: Transaction, id: string, actor: FinancialActor) {
@@ -255,7 +259,7 @@ export class ProtectedContractRepository {
   async requireOwner(tx: Transaction, actor: FinancialActor, sensitive = false): Promise<void> {
     const grant = await this.grant(tx,actor);
     if (grant?.role !== 'OWNER') throw new ApiError('Se requiere el permiso OWNER de operaciones financieras.',403);
-    if (sensitive) requireFinancialMfa(actor);
+    if (sensitive) requireFinancialMfa(actor, grant);
   }
 }
 export const protectedContractRepository = new ProtectedContractRepository();

@@ -53,7 +53,7 @@ export class SettlementRepository {
     return this.db.runTransaction(async tx => { await this.professional(tx,actor);
       return (await tx.get(this.db.collection(SETTLEMENT_COLLECTIONS.accounts).doc(actor.uid))).data() as SettlementAccount | undefined ?? null; });
   }
-  /** OWNER verifica manualmente titular y cuenta; MFA obligatorio y version exacta. */
+  /** OWNER verifica manualmente titular y cuenta; sesion reciente y version exacta. */
   async verifyAccount(actor: FinancialActor, uid: string, version: number, reason: string): Promise<void> {
     await this.db.runTransaction(async tx => {
       await this.contracts.requireOwner(tx,actor,true);

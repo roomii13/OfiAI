@@ -11,7 +11,7 @@ import { obtenerCuentaReceptoraMercadoPago,obtenerCobroTrabajoMercadoPago } from
 jest.mock('../../src/integrations/firebase/admin',()=>({firestore:new (jest.requireActual('../intake-fixtures').MemoryFirestore)()}));
 jest.mock('../../src/config/firebase',()=>({getAuth:()=>({verifyIdToken:async(token:string)=>{
   if(!['company','professional','owner','admin'].includes(token))throw new Error('invalid');
-  return{uid:token,email:token==='owner'?'romina.celis33@gmail.com':'otra.persona@example.test',email_verified:true,
+  return{uid:token,email:token==='owner'?'romina.celis33@gmail.com':'otra.persona@example.test',email_verified:false,
     auth_time:Math.floor(Date.now()/1000),firebase:{sign_in_second_factor:undefined}};
 }})}));
 jest.mock('../../src/integrations/mercadopago',()=>({...jest.requireActual('../../src/integrations/mercadopago'),obtenerCuentaReceptoraMercadoPago:jest.fn(),obtenerCobroTrabajoMercadoPago:jest.fn()}));
@@ -44,8 +44,10 @@ it('cuenta privada propia, sin campos de autoverificacion o UID inyectado',async
   expect((await request('/settlements/account','professional','PUT',data)).status).toBe(200);
   expect((await request('/settlements/account','professional')).body.datos).toMatchObject({verified:false,version:1});
 });
-it('owner sin MFA no verifica cuenta ni registra transferencia',async()=>{
-  expect((await request('/settlements/accounts/professional/verify','owner','POST',{version:1,reason:'Constancia revisada.'})).status).toBe(403);
+it('owner sin MFA ni correo verificado puede verificar cuenta, sin omitir controles de liquidacion',async()=>{
+  await request('/settlements/account','professional','PUT',{holder:'Profesional de prueba',kind:'alias',account:'prueba.alias',currency:'ARS'});
+  expect((await request('/settlements/accounts/professional/verify','owner','POST',{version:1,reason:'Constancia revisada.'})).status).toBe(200);
+  expect((await request('/settlements/account','professional')).body.datos).toMatchObject({verified:true,version:1});
   expect((await request('/settlements/job-1/record-transfer','owner','POST',{idempotencyKey:'00000000-0000-4000-8000-000000000001',accountVersion:1,reference:'ref-12345',confirmTransferred:true})).status).toBe(403);
 });
 it('no acepta importes enviados para la transferencia',async()=>{

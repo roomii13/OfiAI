@@ -15,8 +15,8 @@ import type { FinancialActor,StoredProtectedContract } from '../../src/models/pr
 jest.mock('../../src/integrations/firebase/admin',()=>({ firestore:new (jest.requireActual('../intake-fixtures').MemoryFirestore)() }));
 const db=new MemoryFirestore();const repo=new ProtectedContractRepository(db as unknown as Firestore);const ledger=new SettlementRepository(db as unknown as Firestore);
 const company:FinancialActor={uid:COMPANY_UID,rol:'empresa'};const pro:FinancialActor={uid:PROFESSIONAL_UID,rol:'profesional'};
-/** Actor autentico de prueba con MFA reciente, no dato enviado por HTTP. */
-function owner():FinancialActor{return{uid:'owner',rol:'admin',email:'romina.celis33@gmail.com',emailVerificado:true,secondFactor:true,authTime:Math.floor(Date.now()/1000)};}
+/** OWNER de prueba con sesion reciente, sin correo verificado ni segundo factor. */
+function owner():FinancialActor{return{uid:'owner',rol:'admin',email:'romina.celis33@gmail.com',emailVerificado:false,secondFactor:false,authTime:Math.floor(Date.now()/1000)};}
 /** Crea unicamente fixtures locales. */
 async function seed():Promise<StoredProtectedContract>{
   db.clear();const job=matchingJob();const p=matchingProfessional();
@@ -107,18 +107,33 @@ it('admin general no puede leer el panel financiero ni otorgarse permisos',async
 it.each(['romina.celis33@gmail.com','rom-cel@live.com.ar'])('admite OWNER solo con correo autorizado %s y grant activo',async(email)=>{
   await expect(ledger.overview({...owner(),email})).resolves.toHaveProperty('items');
 });
-it.each([{email:'otra.persona@example.test'},{emailVerificado:false},{email:undefined}])('rechaza OWNER con identidad incompatible aunque exista un grant %j',async(patch)=>{
+it.each([{email:'otra.persona@example.test'},{email:undefined}])('rechaza OWNER con identidad incompatible aunque exista un grant %j',async(patch)=>{
   await expect(ledger.overview({...owner(),...patch})).rejects.toMatchObject({codigoEstado:403});
 });
 it('un correo propietario no concede OWNER sin un grant autorizado',async()=>{
   await expect(ledger.overview({...owner(),uid:'admin'})).rejects.toMatchObject({codigoEstado:403});
 });
-it('cambiar cuenta invalida verificacion y no permite verificar sin MFA',async()=>{
+it.each(['romina.celis33@gmail.com','rom-cel@live.com.ar'])('OWNER %s verifica destinos sin exigir correo verificado ni MFA',async(email)=>{
   await ledger.saveAccount(pro,{holder:'Profesional de prueba',account:'prueba.alias',kind:'alias',currency:'ARS'});
-  await expect(ledger.verifyAccount({...owner(),secondFactor:false},pro.uid,1,'Titularidad revisada')).rejects.toMatchObject({codigoEstado:403});
-  await ledger.verifyAccount(owner(),pro.uid,1,'Titularidad revisada');expect((await ledger.ownAccount(pro))?.verified).toBe(true);
+  await ledger.verifyAccount({...owner(),email},pro.uid,1,'Titularidad revisada');expect((await ledger.ownAccount(pro))?.verified).toBe(true);
   await ledger.saveAccount(pro,{holder:'Profesional de prueba',account:'otra.cuenta',kind:'alias',currency:'ARS'});
   expect((await ledger.ownAccount(pro))?.verified).toBe(false);
+});
+it.each([undefined,Number.NaN,Number.POSITIVE_INFINITY,0])('OWNER no puede operar sin fecha de autenticacion valida: %s',async(authTime)=>{
+  await expect(ledger.verifyAccount({...owner(),authTime},pro.uid,1,'Titularidad revisada')).rejects.toMatchObject({codigoEstado:403});
+});
+it.each([-601,60])('OWNER debe volver a ingresar si la fecha de autenticacion tiene desfase %s',async(offset)=>{
+  await expect(ledger.verifyAccount({...owner(),authTime:Math.floor(Date.now()/1000)+offset},pro.uid,1,'Titularidad revisada')).rejects.toMatchObject({codigoEstado:403});
+});
+it('no extiende la exencion de segundo factor a administradores delegados',async()=>{
+  let c=await repo.read(matchingJob().id,company);
+  c=await repo.command(c.id,company,{action:'open_dispute',reason:'La tarea quedo incompleta.',revision:c.revision,idempotencyKey:randomUUID()});
+  await db.collection('financial_grants').doc('admin').set({uid:'admin',role:'DISPUTE_ADMIN',active:true,revision:1,permissions:['view','propose'],limitsMinor:{}});
+  await db.collection('contract_agreements').doc(c.id).update({assignedUid:'admin'});
+  const actor={...owner(),uid:'admin'};
+  const command={action:'propose' as const,kind:'MORE_INFORMATION' as const,refundMinor:0,reason:'Se requiere informacion adicional.',revision:c.revision,idempotencyKey:randomUUID()};
+  await expect(repo.command(c.id,actor,command)).rejects.toMatchObject({codigoEstado:403});
+  await expect(repo.command(c.id,{...actor,secondFactor:true},command)).resolves.toHaveProperty('dispute.state','PROPOSED');
 });
 /** Prepara un cobro simulado local y aprobaciones, sin consultar Mercado Pago. */
 async function ready():Promise<StoredProtectedContract>{
@@ -161,7 +176,7 @@ it('reembolso parcial no aparece como saldo libre a transferir',async()=>{
   await ledger.applyPayment({...p,refundedMinor:1000,updatedAt:new Date(Date.parse(String(p.updatedAt))+1000).toISOString()} as Parameters<SettlementRepository['applyPayment']>[0],'123');
   expect((await ledger.overview(owner())).items[0]?.readyToTransfer).toBe(false);
 });
-it('resoluciones requieren permiso, MFA y aprobacion independiente',async()=>{
+it('resoluciones OWNER mantienen permiso, sesion reciente y aprobacion independiente',async()=>{
   let c=await repo.read(matchingJob().id,company);
   c=await repo.command(c.id,company,{action:'open_dispute',reason:'La tarea quedo incompleta.',revision:c.revision,idempotencyKey:randomUUID()});
   c=await repo.command(c.id,owner(),{action:'propose',kind:'FULL_REFUND',refundMinor:c.breakdown.clientTotalMinor,reason:'Revisar evidencia del reclamo.',revision:c.revision,idempotencyKey:randomUUID()});
