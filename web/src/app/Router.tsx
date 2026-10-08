@@ -132,8 +132,8 @@ function RequireAuth({
  * Evita mostrar login o registro cuando ya existe sesión activa.
  */
 function GuestRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
-  if (loading) return <p role="status">Cargando sesion...</p>;
+  const { isAuthenticated, initializing } = useAuth();
+  if (initializing) return <p role="status">Cargando sesion...</p>;
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 }
 
@@ -205,7 +205,7 @@ function LoginPage() {
         </label>
 
         {error && (
-          <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
             <span>{error}</span>
           </div>

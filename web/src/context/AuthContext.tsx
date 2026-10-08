@@ -91,6 +91,8 @@ export interface AuthContextType {
   user: AuthUser | null;
   role: UserRole | null;
   loading: boolean;
+  /** Distingue la restauracion inicial de los envios de formularios. */
+  initializing: boolean;
   token: string | null;
   isAuthenticated: boolean;
   demoAccessEnabled: boolean;
@@ -239,6 +241,7 @@ export function AuthProvider({
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(true);
 
   const commitSession = useCallback((session: StoredSession) => {
     setUser(session.user);
@@ -249,9 +252,9 @@ export function AuthProvider({
   useEffect(() => {
     const stored = readStoredSession();
     if (configuracion.app.demoAccessEnabled && stored?.user.id.startsWith('demo-')) {
-      commitSession(stored); setLoading(false); return;
+      commitSession(stored); setLoading(false); setInitializing(false); return;
     }
-    if (!auth) { clearStoredSession(); setLoading(false); return; }
+    if (!auth) { clearStoredSession(); setLoading(false); setInitializing(false); return; }
     let active = true;
     let revision = 0;
     const unsubscribe = onIdTokenChanged(auth, firebaseUser => {
@@ -272,7 +275,7 @@ export function AuthProvider({
           if (isCurrent()) commitSession({ user: normalizeUser(readApiData(result).usuario), token: idToken });
         } catch {
           if (isCurrent()) { setUser(null); setToken(null); clearStoredSession(); }
-        } finally { if (isCurrent()) setLoading(false); }
+        } finally { if (isCurrent()) { setLoading(false); setInitializing(false); } }
       }
       void restore();
     });
@@ -377,6 +380,7 @@ export function AuthProvider({
     user,
     role: user?.role ?? null,
     loading,
+    initializing,
     token,
     isAuthenticated: Boolean(user),
     demoAccessEnabled: configuracion.app.demoAccessEnabled,
@@ -390,6 +394,7 @@ export function AuthProvider({
   }), [
     user,
     loading,
+    initializing,
     token,
     login,
     loginAsDemo,

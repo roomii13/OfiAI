@@ -3,7 +3,7 @@
  * @descripcion Flujos web contra contratos HTTP controlados, sin acceso a servicios reales.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { UserRole } from '../context/AuthContext';
 import { setAuthToken } from '../lib/api/client';
@@ -11,8 +11,9 @@ import { AppRouter } from './Router';
 
 const session = vi.hoisted(() => ({
   user: { id: 'account-1', name: 'Cuenta de prueba', email: 'cuenta@example.test', role: 'empresa' as UserRole },
-  role: 'empresa' as UserRole, loading: false, isAuthenticated: true, token: 'test-token',
+  role: 'empresa' as UserRole, loading: false, initializing: false, isAuthenticated: true, token: 'test-token',
   demoAccessEnabled: false, logout: vi.fn(), login: vi.fn(),
+  registerCompany: vi.fn(), registerCitizen: vi.fn(), registerProfessional: vi.fn(),
 }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => session }));
 vi.mock('../lib/firebase', () => ({ auth: null }));
@@ -45,7 +46,9 @@ beforeEach(() => {
   handlers.clear();
   session.user.id = 'account-1';
   session.loading = false;
+  session.initializing = false;
   session.isAuthenticated = true;
+  for (const action of [session.login, session.registerCompany, session.registerCitizen, session.registerProfessional]) action.mockReset();
   setAuthToken('test-token');
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
@@ -71,6 +74,50 @@ beforeEach(() => {
   }
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+describe('Formularios de acceso', () => {
+  it('espera la restauracion inicial antes de mostrar el login', () => {
+    session.isAuthenticated = false;
+    session.initializing = true;
+    session.loading = true;
+    const view = openPage('/login');
+    expect(screen.getByRole('status').textContent).toBe('Cargando sesion...');
+    expect(screen.queryByLabelText('Email')).toBeNull();
+    session.initializing = false;
+    session.loading = false;
+    view.rerender(<MemoryRouter initialEntries={['/login']}><AppRouter /></MemoryRouter>);
+    expect(screen.getByLabelText('Email')).toBeTruthy();
+  });
+
+  it.each([
+    ['/login', 'login', 'Ingresar', false],
+    ['/register/citizen', 'registerCitizen', 'Crear cuenta gratis', false],
+    ['/register/company', 'registerCompany', 'Crear empresa', true],
+    ['/register/professional', 'registerProfessional', 'Crear perfil profesional', true],
+  ] as const)('conserva los datos y muestra el rechazo del servidor en %s', async (path, action, button, placeholder) => {
+    session.isAuthenticated = false;
+    let rejectRequest!: (reason: Error) => void;
+    const pending = new Promise<void>((_resolve, reject) => { rejectRequest = reject; });
+    session[action].mockImplementationOnce(() => { session.loading = true; return pending; });
+    const view = openPage(path);
+    const email = (placeholder ? screen.getByPlaceholderText('Email') : screen.getByLabelText('Email')) as HTMLInputElement;
+    fireEvent.change(email, { target: { value: 'registro@example.test' } });
+    fireEvent.submit(screen.getByRole('button', { name: button }).closest('form')!);
+    view.rerender(<MemoryRouter initialEntries={[path]}><AppRouter /></MemoryRouter>);
+    expect(document.body.contains(email)).toBe(true);
+    expect(email.value).toBe('registro@example.test');
+    expect(screen.getByRole('button', { name: /Ingresando|Creando cuenta|Registrando/ }).hasAttribute('disabled')).toBe(true);
+    await act(async () => {
+      session.loading = false;
+      rejectRequest(new Error('Solicitud rechazada por el servidor.'));
+    });
+    view.rerender(<MemoryRouter initialEntries={[path]}><AppRouter /></MemoryRouter>);
+    expect(await screen.findByText('Solicitud rechazada por el servidor.')).toBeTruthy();
+    expect(email.value).toBe('registro@example.test');
+    expect(screen.getByRole('button', { name: button }).hasAttribute('disabled')).toBe(false);
+    expect(session[action]).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('Operaciones de agentes conectadas a API', () => {
   it('empresa no consulta endpoints administrativos al abrir Marketing por URL', async () => {
