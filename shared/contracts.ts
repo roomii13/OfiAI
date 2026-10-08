@@ -35,7 +35,7 @@ export interface CompanyData {
 export interface NotificationData { id: string; titulo: string; mensaje: string; leida: boolean }
 export interface NotificationPreferences { email: boolean; whatsapp: boolean; push: boolean; in_app: boolean }
 export interface AccountData {
-  usuario: { id: string; nombre: string; apellido?: string; email: string; rol: Role; pais: string;
+  usuario: { id: string; nombre: string; apellido?: string; email: string; rol: Role; financialRole?: 'OWNER'; pais: string;
     preferenciasNotificaciones?: NotificationPreferences };
 }
 export type PlanData = import('./billing').CommercialPlan;

@@ -67,7 +67,8 @@ function getNavigationForRole(role: UserRole | null): NavigationItem[] {
 /**
  * Devuelve una etiqueta legible para el rol del usuario.
  */
-function formatRole(role: UserRole | null, accountType?: string): string {
+function formatRole(role: UserRole | null, accountType?: string, financialRole?: 'OWNER'): string {
+  if (role === 'admin' && financialRole === 'OWNER') return 'OWNER';
   if (accountType === 'particular') return 'Particular';
   if (role === 'empresa') {
     return 'Empresa';
@@ -216,7 +217,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase text-gray-500">{formatRole(role, user?.accountType)}</p>
+              <p className="text-xs font-medium uppercase text-gray-500">{formatRole(role, user?.accountType, user?.financialRole)}</p>
               <h1 className="truncate text-lg font-semibold text-gray-950 sm:text-xl">{title}</h1>
             </div>
           </div>

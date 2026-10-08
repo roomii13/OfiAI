@@ -64,7 +64,9 @@ export const verificarAutenticacion = async (
 
     // Rol autoritativo de Firestore, no banderas de permisos enviadas por el cliente.
     const usuario = await userRepository.findById(tokenDecodificado.uid);
-    if (!usuario || !usuario.activo || !['empresa', 'profesional', 'admin'].includes(usuario.rol)) {
+    const ownerEmailMismatch = usuario?.financialRole === 'OWNER'
+      && tokenDecodificado.email?.trim().toLowerCase() !== usuario.email.trim().toLowerCase();
+    if (!usuario || !usuario.activo || ownerEmailMismatch || !['empresa', 'profesional', 'admin'].includes(usuario.rol)) {
       res.status(403).json({ exito: false, mensaje: 'Cuenta deshabilitada o sin un rol valido.' });
       return;
     }

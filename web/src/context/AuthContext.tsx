@@ -37,6 +37,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  financialRole?: 'OWNER';
   accountType?: UserRole | 'particular';
   country?: string;
   phone?: string;
@@ -116,6 +117,7 @@ interface BackendUser {
   apellido?: string;
   telefono?: string;
   rol: UserRole;
+  financialRole?: 'OWNER';
   tipoCuenta?: UserRole | 'particular';
   pais?: string;
 }
@@ -149,6 +151,7 @@ function normalizeUser(user: BackendUser): AuthUser {
     name: displayName || user.email,
     email: user.email,
     role: user.rol,
+    financialRole: user.financialRole,
     accountType: user.tipoCuenta ?? user.rol,
     country: user.pais,
     phone: user.telefono,

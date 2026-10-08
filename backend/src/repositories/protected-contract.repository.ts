@@ -10,6 +10,7 @@ import type { FinancialActor, FinancialGrant, StoredProtectedContract, ContractP
 import type { StoredCoordinator } from '../models/coordinator.model';
 import type { ContractCommand } from '../validators/protected-contract.validator';
 import type { ContractEntry } from '../../../shared/protected-contract';
+import { hasOwnerGrant, isOwnerRole } from '../constants/roles';
 
 /** Huella interna de datos normalizados; no se almacena contenido en logs. */
 function fingerprint(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
@@ -31,8 +32,10 @@ export class ProtectedContractRepository {
   /** Usuario y grants se consultan nuevamente en cada operacion; la revocacion es inmediata. */
   private async grant(tx: Transaction, actor: FinancialActor): Promise<FinancialGrant | null> {
     const user = (await tx.get(this.db.collection(C.USUARIOS).doc(actor.uid))).data();
-    if (!user?.activo || user.rol !== actor.rol) throw new ApiError('Cuenta no habilitada.', 403);
     const grant = (await tx.get(this.db.collection(P.grants).doc(actor.uid))).data() as FinancialGrant | undefined;
+    const storedOwner = isOwnerRole(user?.rol);
+    if (!user?.activo || (storedOwner ? actor.rol !== 'admin' || !hasOwnerGrant(actor.uid, actor.email, grant) : user.rol !== actor.rol))
+      throw new ApiError('Cuenta no habilitada.', 403);
     if (grant?.role === 'OWNER' && !FINANCIAL_OWNER_EMAILS.includes(actor.email?.trim().toLowerCase() ?? ''))
       throw new ApiError('OWNER requiere uno de los correos propietarios autorizados.', 403);
     return actor.rol === 'admin' && grant?.active && grant.uid === actor.uid ? grant : null;
@@ -149,7 +152,7 @@ export class ProtectedContractRepository {
         if (grant?.role !== 'OWNER' || !c.dispute || [c.companyUid,c.professionalUid].includes(cmd.uid)) throw new ApiError('Asignacion no permitida.', 403);
         const target = (await tx.get(this.db.collection(P.grants).doc(cmd.uid))).data() as FinancialGrant | undefined;
         const targetUser = (await tx.get(this.db.collection(C.USUARIOS).doc(cmd.uid))).data();
-        if (!target?.active || !targetUser?.activo || targetUser.rol !== 'admin') throw new ApiError('Administrador no habilitado.', 409);
+        if (!target?.active || !targetUser?.activo || (targetUser.rol !== 'admin' && !(isOwnerRole(targetUser.rol) && hasOwnerGrant(cmd.uid, targetUser.email, target)))) throw new ApiError('Administrador no habilitado.', 409);
         c.assignedUid = cmd.uid; c.dispute.state = 'UNDER_REVIEW';
       } else {
         this.admin(actor, grant, c, cmd.action === 'propose' ? 'propose' : 'resolve', true);

@@ -66,6 +66,7 @@ interface BackendUsuario {
   nombre: string;
   apellido?: string;
   rol: RolUsuario;
+  financialRole?: 'OWNER';
   tipoCuenta?: RolUsuario | 'particular';
   pais?: string;
 }
@@ -89,6 +90,7 @@ function normalizeUsuario(usuario: BackendUsuario): UsuarioMobile {
     email: usuario.email,
     nombre: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || usuario.email,
     rol: usuario.rol,
+    financialRole: usuario.financialRole,
     tipoCuenta: usuario.tipoCuenta ?? usuario.rol,
     pais: usuario.pais ?? 'AR',
     plan: 'gratuito',

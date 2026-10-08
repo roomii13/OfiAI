@@ -77,6 +77,12 @@ it('restaura con Firebase y guarda el perfil sin ID token', async () => {
   expect(state.token).toBe('fresh-test-token');
   expect(JSON.parse(mockStorage.get('ofiai.mobile.auth')!)).not.toHaveProperty('token');
 });
+it('conserva la identificacion OWNER del servidor y su acceso administrativo',async()=>{
+  jest.mocked(apiMobile.get).mockResolvedValue({exito:true,datos:{usuario:{...profile,rol:'admin',financialRole:'OWNER'}}});
+  await mountSession();
+  expect(state.usuario).toMatchObject({rol:'admin',financialRole:'OWNER'});
+  expect(state.estaAutenticado).toBe(true);
+});
 
 it.each([401, 403])('descarta el cache si /auth/me responde %s', async status => {
   jest.mocked(apiMobile.get).mockRejectedValue(new ApiMobileError('Acceso rechazado', status));

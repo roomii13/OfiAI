@@ -3,6 +3,7 @@ import { FieldPath } from 'firebase-admin/firestore';
 import { firestore } from '../integrations/firebase/admin';
 import { COLECCIONES as C } from '../database/firestore/collections';
 import { ApiError } from '../middleware/error.middleware';
+import { isOwnerRole } from '../constants/roles';
 import type { OperationsResource,OperationsList } from '../../../shared/operations';
 const resources:Record<Exclude<OperationsResource,'matches'>,{collection:string;fields:string[]}> = {
   users:{collection:C.USUARIOS,fields:['nombre','apellido','email','rol','activo']},
@@ -30,7 +31,7 @@ export class OperationsRepository {
     const ref=firestore.collection(kind==='user'?C.USUARIOS:kind==='professional'?C.PROFESIONALES:C.TRABAJOS).doc(targetId);
     await firestore.runTransaction(async tx=>{
       const doc=await tx.get(ref);const data=doc.data();if(!data)throw new ApiError('Registro no encontrado.',404);
-      if(kind==='user'&&(actorId===targetId||data.rol==='admin'))throw new ApiError('No se modifican cuentas administrativas desde esta accion.',409);
+      if(kind==='user'&&(actorId===targetId||data.rol==='admin'||isOwnerRole(data.rol)))throw new ApiError('No se modifican cuentas administrativas desde esta accion.',409);
       const profiles=kind==='user'?(await tx.get(firestore.collection(C.PROFESIONALES).where('usuarioId','==',targetId).limit(5))).docs:[];
       if(kind==='professional') {
         const owner=await tx.get(firestore.collection(C.USUARIOS).doc(String(data.usuarioId)));

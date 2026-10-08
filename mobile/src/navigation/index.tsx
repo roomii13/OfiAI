@@ -396,7 +396,7 @@ function ProfileScreen() {
     {account.data && <Section title="Cuenta">
       <ListRow title="Nombre" description={`${account.data.usuario.nombre} ${account.data.usuario.apellido ?? ''}`} />
       <ListRow title="Email" description={account.data.usuario.email} />
-      <ListRow title="Rol" description={account.data.usuario.rol} />
+      <ListRow title="Rol" description={account.data.usuario.financialRole ?? account.data.usuario.rol} />
     </Section>}
     <Section title="Suscripcion">
       <PrimaryButton label="Planes y facturacion" onPress={() => navigation.navigate('Suscripciones')} />

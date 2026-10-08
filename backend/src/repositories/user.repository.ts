@@ -9,10 +9,28 @@ import { firestore } from '../integrations/firebase/admin';
 import { COLECCIONES } from '../database/firestore/collections';
 import { Usuario } from '../models/User';
 import { logger } from '../config/logger';
+import { hasOwnerGrant, isOwnerRole, ROLES } from '../constants/roles';
+import { PROTECTED_COLLECTIONS } from '../constants/protected-payments';
+import type { FinancialGrant } from '../models/protected-contract.model';
 
+/** Proyecta identidades persistidas al contrato de acceso sin reescribir sus roles. */
 class UserRepository {
   private get coleccion() {
     return firestore.collection(COLECCIONES.USUARIOS);
+  }
+
+  /** Conserva OWNER en Firestore y entrega capacidades administrativas solo con permiso vigente. */
+  private async toUser(uid: string, data: Record<string, unknown>): Promise<Usuario | null> {
+    const storedOwner = isOwnerRole(data.rol);
+    if (!storedOwner && !Object.values(ROLES).includes(data.rol as Usuario['rol'])) return null;
+    const { financialRole: _untrustedFinancialRole, ...profile } = data;
+    if (storedOwner || data.rol === ROLES.ADMIN) {
+      const grant = (await firestore.collection(PROTECTED_COLLECTIONS.grants).doc(uid).get()).data() as FinancialGrant | undefined;
+      const owner = data.activo === true && hasOwnerGrant(uid, data.email, grant);
+      if (storedOwner && !owner) return null;
+      return { ...profile, id: uid, rol: ROLES.ADMIN, ...(owner ? { financialRole: 'OWNER' } : {}) } as Usuario;
+    }
+    return { ...profile, id: uid } as Usuario;
   }
 
   /**
@@ -45,7 +63,7 @@ class UserRepository {
       if (!doc.exists) {
         return null;
       }
-      return doc.data() as Usuario;
+      return await this.toUser(doc.id, doc.data()!);
     } catch (error) {
       logger.error(`Error al buscar usuario por UID: ${uid}`, { error });
       throw error;
@@ -63,7 +81,8 @@ class UserRepository {
       if (snapshot.empty) {
         return null;
       }
-      return snapshot.docs[0]?.data() as Usuario;
+      const doc = snapshot.docs[0]!;
+      return await this.toUser(doc.id, doc.data());
     } catch (error) {
       logger.error(`Error al buscar usuario por email: ${email}`, { error });
       throw error;

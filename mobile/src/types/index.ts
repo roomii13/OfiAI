@@ -12,6 +12,7 @@ export interface UsuarioMobile {
   email: string;
   nombre: string;
   rol: RolUsuario;
+  financialRole?: 'OWNER';
   tipoCuenta?: RolUsuario | 'particular';
   pais: string;
   fotoPerfil?: string;

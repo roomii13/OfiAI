@@ -53,3 +53,8 @@ it('rechaza proyectos distintos antes de consultar identidades',async()=>{
   await expect(provisionFinancialOwners(true)).rejects.toThrow('proyecto autorizado');
   expect(getAuth().getUserByEmail).not.toHaveBeenCalled();
 });
+it('bootstrap reconoce OWNER sin sustituir el rol que eligio la propietaria',async()=>{
+  await db.collection('users').doc('owner').update({rol:'OWNER\n'});
+  expect((await provisionFinancialOwners(true))[0]?.status).toBe('owner_configured');
+  expect(db.documents.get('users/owner')?.rol).toBe('OWNER\n');
+});

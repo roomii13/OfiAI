@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createHmac } from 'node:crypto';
 import { settlementRoutes } from '../../src/routes/settlement.routes';
 import { protectedContractRoutes } from '../../src/routes/protected-contract.routes';
+import { authRoutes } from '../../src/routes/auth.routes';
 import { firestore } from '../../src/integrations/firebase/admin';
 import { MemoryFirestore } from '../intake-fixtures';
 import { env } from '../../src/config/env';
@@ -22,6 +23,7 @@ async function request(path:string,token='owner',method='GET',body?:unknown,extr
   return{status:response.status,body:await response.json() as {datos:unknown}};
 }
 beforeAll(async()=>{const app=express();app.use(express.json());app.use('/settlements',settlementRoutes);app.use('/jobs/:id/contract',protectedContractRoutes);
+  app.use('/auth',authRoutes);
   await new Promise<void>(resolve=>{server=app.listen(0,resolve);});const address=server.address();if(!address||typeof address==='string')throw new Error('port');url='http://127.0.0.1:'+address.port;});
 afterAll(async()=>{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));});
 beforeEach(async()=>{db.clear();jest.clearAllMocks();env.CONTRACT_PAYMENTS_ENABLED=false;env.MERCADOPAGO_WEBHOOK_SECRET='test-only';
@@ -32,6 +34,21 @@ it('401 sin sesion y 403 para admin general, empresa y profesional',async()=>{
   expect((await request('/settlements','')).status).toBe(401);
   for(const token of ['admin','company','professional'])expect((await request('/settlements',token)).status).toBe(403);
   expect((await request('/settlements')).body.datos).toMatchObject({items:[]});
+});
+it.each(['OWNER','owner','OWNER\n'])('auth/me y liquidaciones aceptan %j sin reescribir el rol persistido',async(rol)=>{
+  await db.collection('users').doc('owner').update({id:'owner',rol,email:'romina.celis33@gmail.com'});
+  const response=await request('/auth/me');
+  expect(response.status).toBe(200);
+  expect(response.body.datos).toMatchObject({usuario:{id:'owner',rol:'admin',financialRole:'OWNER'}});
+  expect((await request('/settlements')).status).toBe(200);
+  expect(db.documents.get('users/owner')?.rol).toBe(rol);
+  await db.collection('financial_grants').doc('owner').update({active:false});
+  expect((await request('/auth/me')).status).toBe(403);
+  expect((await request('/settlements')).status).toBe(403);
+});
+it('auth/me no acepta un OWNER cuyo correo del perfil difiere del token Firebase',async()=>{
+  await db.collection('users').doc('owner').update({rol:'OWNER',email:'rom-cel@live.com.ar'});
+  expect((await request('/auth/me')).status).toBe(403);
 });
 it('un grant OWNER para otro correo no habilita el panel ni puede suplantar el correo por parametros',async()=>{
   await db.collection('financial_grants').doc('admin').set({uid:'admin',role:'OWNER',active:true,revision:1,permissions:[],limitsMinor:{}});

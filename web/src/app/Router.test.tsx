@@ -10,7 +10,7 @@ import { setAuthToken } from '../lib/api/client';
 import { AppRouter } from './Router';
 
 const session = vi.hoisted(() => ({
-  user: { id: 'account-1', name: 'Cuenta de prueba', email: 'cuenta@example.test', role: 'empresa' as UserRole },
+  user: { id: 'account-1', name: 'Cuenta de prueba', email: 'cuenta@example.test', role: 'empresa' as UserRole, financialRole: undefined as 'OWNER' | undefined },
   role: 'empresa' as UserRole, loading: false, initializing: false, isAuthenticated: true, token: 'test-token',
   demoAccessEnabled: false, logout: vi.fn(), login: vi.fn(),
   registerCompany: vi.fn(), registerCitizen: vi.fn(), registerProfessional: vi.fn(),
@@ -45,6 +45,7 @@ function requested(): string[] {
 beforeEach(() => {
   handlers.clear();
   session.user.id = 'account-1';
+  session.user.financialRole = undefined;
   session.loading = false;
   session.initializing = false;
   session.isAuthenticated = true;
@@ -170,6 +171,13 @@ describe('Operaciones de agentes conectadas a API', () => {
 });
 
 describe('Pantallas conectadas a la API', () => {
+  it('identifica a la propietaria como OWNER conservando las rutas administrativas',async()=>{
+    session.user.financialRole='OWNER';
+    openPage('/dashboard','admin');
+    expect(await screen.findByText('OWNER')).toBeTruthy();
+    expect(screen.getByRole('link',{name:'Cobros y liquidaciones'})).toBeTruthy();
+    expect(requested()).toContain('GET /dashboard/admin');
+  });
   it.each([['empresa', 'company'], ['profesional', 'professional'], ['admin', 'admin']] as const)(
     'consulta el dashboard de %s', async (role, endpoint) => {
       const { container } = openPage('/dashboard', role);

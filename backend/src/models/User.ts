@@ -17,6 +17,8 @@ export interface Usuario {
   telefono?: string;
   fotoPerfil?: string;      // URL en Firebase Storage
   rol: RolUsuario;
+  /** Permiso superior validado por el servidor; no sustituye el rol operativo compatible. */
+  financialRole?: 'OWNER';
   /** Los particulares usan permisos de contratante, sin una suscripcion empresarial. */
   tipoCuenta?: 'empresa' | 'particular' | 'profesional' | 'admin';
   pais: CodigoPais;

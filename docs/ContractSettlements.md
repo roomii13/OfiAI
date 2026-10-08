@@ -47,12 +47,13 @@ El estado de trabajo permanece en Coordinator; el expediente registra las confir
 - Profesional: edita unicamente su cuenta privada de cobro; cambiarla revoca su verificacion.
 - OWNER: bandeja financiera, verificacion de destinos, registro manual, comisiones y permisos.
 - Unicos correos permitidos para OWNER: `romina.celis33@gmail.com` y `rom-cel@live.com.ar`. La API exige token Firebase valido, rol administrador autoritativo y grant OWNER activo ligado al UID. Por decision expresa de la propietaria no exige `email_verified` ni MFA para esas cuentas. Ni escribir ese correo en un formulario ni asignar un grant OWNER a otro correo permite entrar. La lista es compartida con el bootstrap y no editable por HTTP.
+- Compatibilidad de perfiles OWNER: se conserva el valor almacenado (`OWNER`, `owner` o con espacios accidentales). El repositorio valida UID, correo y grant vigente antes de proyectar `rol: admin` como capacidad operativa compatible y `financialRole: OWNER` como identificacion de propietaria. No reescribe Firestore. Web y movil muestran OWNER; las rutas existentes siguen funcionando sin duplicar la arquitectura de roles.
 - DISPUTE_ADMIN: solo expedientes asignados y capacidades concedidas. No puede nombrar administradores, cambiar comisiones ni gestionar liquidaciones del OWNER.
 - Operaciones administrativas sensibles: autenticacion de los ultimos 10 minutos para todos; MFA adicional para DISPUTE_ADMIN, sin exigirlo a los dos OWNER autorizados. La excepcion reduce la defensa contra robo de contrasenas y no se extiende a administradores generales.
 - Permisos activos se releen en servidor; el rol general `admin` no basta. Se rechazan conflictos de interes.
 - Propuesta y aprobacion de resoluciones financieras son acciones separadas. Segun umbral se exige aprobador independiente. Ninguna resolucion mueve fondos.
 
-Bootstrap de OWNER: `node dist/workers/financial-owner.worker.js` comprueba, sin escribir. `--apply` concede solo a las identidades Firebase autorizadas, habilitadas y ya existentes como administradoras activas. No exige verificacion de correo ni MFA, no crea usuarios, no cambia contrasenas ni factores inscritos, no marca correos como verificados y no hay endpoint para autootorgarse OWNER. El alta deja auditoria y repetirla no duplica un permiso activo.
+Bootstrap de OWNER: `node dist/workers/financial-owner.worker.js` comprueba, sin escribir. `--apply` concede solo a las identidades Firebase autorizadas, habilitadas y ya existentes con perfil activo admin/OWNER. No exige verificacion de correo ni MFA, no crea usuarios, no cambia el rol persistido, contrasenas ni factores inscritos, no marca correos como verificados y no hay endpoint para autootorgarse OWNER. El alta deja auditoria y repetirla no duplica un permiso activo.
 
 ## Endpoints nuevos
 
@@ -162,7 +163,7 @@ Reutilizadas: `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADO
 
 ## Pendientes antes de habilitar
 
-1. Desplegar la excepcion de autenticacion solicitada para OWNER. Los dos perfiles ya estan normalizados y tienen grant OWNER activo; deben volver a iniciar sesion para renovar las claims. La verificacion de correo y MFA ya no son condiciones para OWNER en esta version.
+1. Publicar y comprobar la compatibilidad OWNER contra `/auth/me`, dashboard y liquidaciones con ambas identidades. No reemplazar de nuevo OWNER por admin en Firestore para resolver el acceso. La verificacion de correo y MFA ya no son condiciones para OWNER en esta version.
 2. Configurar tarifas, impuestos y condiciones efectivas, confirmar aplicabilidad comercial del cobro y pago posterior manual con el proveedor/asesoria correspondiente. La aplicacion no convierte el saldo ordinario en custodia.
 3. Validar checkout, entrega originada por Mercado Pago, rechazo, devoluciones, contracargos y recuperacion de timeouts con cuentas de prueba. No se ejecutaron cobros reales.
 4. Completar conciliacion periodica y recuperacion operativa de preferencias vencidas, cobros duplicados y diferencias de neto. Por ahora quedan bloqueados para revision.

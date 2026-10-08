@@ -5,6 +5,7 @@ import { firestore } from '../integrations/firebase/admin';
 import { ProtectedContractRepository } from '../repositories/protected-contract.repository';
 import { PROTECTED_COLLECTIONS as P, FINANCIAL_OWNER_EMAILS } from '../constants/protected-payments';
 import { env } from '../config/env';
+import { isOwnerRole } from '../constants/roles';
 /** No crea usuarios ni acepta correos desde HTTP. Dry-run por defecto y proyecto exacto. */
 export async function provisionFinancialOwners(apply=false):Promise<Array<{email:string;status:string;mfaEnrolled:boolean}>> {
   if(env.FIREBASE_PROJECT_ID!=='ofiai-2f357') throw new Error('El alta OWNER solo admite el proyecto autorizado.');
@@ -19,7 +20,7 @@ export async function provisionFinancialOwners(apply=false):Promise<Array<{email
     const status=await firestore.runTransaction(async tx=>{
       const user=(await tx.get(firestore.collection('users').doc(identity.uid))).data();
       const ref=firestore.collection(P.grants).doc(identity.uid);const previous=(await tx.get(ref)).data();
-      if(!user?.activo||user.rol!=='admin'||String(user.email).toLowerCase()!==email)return 'existing_admin_required';
+      if(!user?.activo||(user.rol!=='admin'&&!isOwnerRole(user.rol))||String(user.email).toLowerCase()!==email)return 'existing_admin_required';
       if(previous?.role==='OWNER'&&previous.active)return 'owner_already_configured';
       if(!apply)return 'eligible';
       tx.set(ref,{uid:identity.uid,role:'OWNER',active:true,revision:(previous?.revision ?? 0)+1,permissions:['view','communicate','propose','resolve','finance'],limitsMinor:{},updatedAt:new Date().toISOString()});
