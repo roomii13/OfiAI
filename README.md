@@ -70,6 +70,22 @@ npm run typecheck
 npx expo start
 ```
 
+## Demo Alexa+
+
+La ruta `/alexa-demo` ofrece una simulación conversacional en español de OfiAI para el track Alexa+.
+Está construida como experiencia ilustrativa: usa perfiles ficticios y reglas locales, no llama al backend,
+no publica solicitudes ni contacta profesionales. La conversación muestra Intake, Matching, revisión de precio
+y coordinación supervisada; los flujos reales siguen disponibles tras iniciar sesión en OfiAI.
+
+Para ejecutarla localmente:
+
+```bash
+cd web
+npm run dev
+```
+
+Abrir `http://localhost:5173/alexa-demo`. La simulación no representa un dispositivo, voz ni integración Alexa+ real.
+
 ## Variables Principales
 
 Backend:

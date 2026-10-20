@@ -1,0 +1,34 @@
+
+image: node:22.13.0-bookworm-slim
+
+stages:
+  - validate
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key: npm-cache
+  paths:
+    - .npm/
+
+backend:build-and-test:
+  stage: validate
+  script:
+    - npm ci --prefix backend
+    - npm --prefix backend run build
+    - npm --prefix backend test -- --runInBand
+
+web:build-and-test:
+  stage: validate
+  script:
+    - npm ci --prefix web
+    - npm --prefix web run build
+    - npm --prefix web test
+
+mobile:validate:
+  stage: validate
+  script:
+    - npm ci --prefix mobile
+    - npm --prefix mobile run typecheck
+    - npm --prefix mobile run test:dependencies
