@@ -32,6 +32,7 @@ import { IntakePage } from './IntakePage';
 import { JobMatchesPage } from './JobMatchesPage';
 import { JobPricingPage } from './JobPricingPage';
 import { CoordinatorPage, CoordinationInboxPage } from './CoordinatorPage';
+import { AlexaDemoPage } from './AlexaDemoPage';
 import {
   useAuth,
   type RegisterCompanyInput,
@@ -69,6 +70,7 @@ export function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/alexa-demo" element={<AlexaDemoPage />} />
       <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><RegisterChoicePage /></GuestRoute>} />
       <Route path="/register/company" element={<GuestRoute><CompanyRegisterPage /></GuestRoute>} />
@@ -226,6 +228,10 @@ function LoginPage() {
           </button>
         </div>
       )}
+
+      <Link to="/alexa-demo" className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-200 bg-white px-4 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+        <Sparkles className="h-4 w-4" aria-hidden="true" /> Probar demo conversacional Alexa+
+      </Link>
 
       <div className="mt-6 flex items-center justify-between text-sm">
         <Link className="font-medium text-brand-700 hover:text-brand-800" to="/forgot-password">
