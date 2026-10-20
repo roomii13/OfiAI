@@ -29,6 +29,12 @@ beforeEach(() => { jest.spyOn(console, 'error').mockImplementation(() => undefin
 afterEach(() => { process.env = { ...originalEnvironment }; jest.restoreAllMocks(); });
 
 describe('Configuracion para Render', () => {
+  it('falla si producción no recibe JWT_SECRET', () => {
+    expect(() => loadEnvironment({ JWT_SECRET: undefined })).toThrow('Configuración');
+  });
+  it('rechaza el secreto de desarrollo en producción', () => {
+    expect(() => loadEnvironment({ JWT_SECRET: 'ofiai-dev-jwt-secret-key-latam-2026' })).toThrow('Configuración');
+  });
   it('permite WhatsApp deshabilitado sin bloquear el resto de la API', () => {
     expect(loadEnvironment().WHATSAPP_TOKEN).toBe('');
   });
