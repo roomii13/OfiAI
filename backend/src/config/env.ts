@@ -114,7 +114,12 @@ const envSchema = z.object({
 
   // Seguridad
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
-  JWT_SECRET: z.string().min(16, 'La clave JWT debe tener al menos 16 caracteres').default('ofiai-dev-jwt-secret-key-latam-2026'),
+  JWT_SECRET: z.preprocess(
+    (value) => value === undefined && process.env.NODE_ENV !== 'production'
+      ? 'ofiai-dev-jwt-secret-key-latam-2026'
+      : value,
+    z.string().min(16, 'La clave JWT debe tener al menos 16 caracteres'),
+  ),
   CORS_ORIGINS: z
     .string()
     .transform((val) => val.split(',').map((origin) => origin.trim()))
